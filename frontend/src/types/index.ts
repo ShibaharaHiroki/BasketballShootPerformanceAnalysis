@@ -24,6 +24,9 @@ export interface ClassWeight {
     w_bg: number;
 }
 
+// TULCA channel options: 0=attempts, 1=makes, 2=weighted
+export type TulcaChannel = 0 | 1 | 2;
+
 export interface AppState {
     embedding: number[][];
     scaledData: number[][];

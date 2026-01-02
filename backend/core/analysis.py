@@ -49,7 +49,7 @@ def compute_embedding_and_projections(
     labels: np.ndarray,
     s_dim: int = 4,
     v_dim: int = 160,
-    c_dim: int = 3,
+    tulca_channel: int = 0,
 ):
     """
     Run TULCA and PaCMAP for initial embedding.
@@ -59,17 +59,20 @@ def compute_embedding_and_projections(
         labels: Class labels for each game
         s_dim: Time mode latent dimension
         v_dim: Space mode latent dimension
-        c_dim: Channel mode latent dimension
+        tulca_channel: Which channel to use for TULCA (0=attempts, 1=makes, 2=weighted, 3=misses)
         
     Returns:
         tuple: (projection_matrices, scaled_data, embedding)
     """
+    # Extract only the specified channel for TULCA
+    tensor_single_channel = tensor[:, :, :, tulca_channel:tulca_channel+1]
+    
     tulca = TULCA(
-        n_components=np.array([s_dim, v_dim, c_dim]),
+        n_components=np.array([s_dim, v_dim, 1]),  # c_dim is always 1
         optimization_method="evd",
     )
 
-    low_dim_tensor = tulca.fit_transform(tensor, labels)
+    low_dim_tensor = tulca.fit_transform(tensor_single_channel, labels)
     proj_mats = tulca.get_projection_matrices()
 
     scaled_data = unfold_and_scale(low_dim_tensor)
@@ -88,7 +91,7 @@ def recalc_tulca_with_weights(
     n_classes: int,
     s_dim: int,
     v_dim: int,
-    c_dim: int,
+    tulca_channel: int = 0,
 ):
     """
     Recompute TULCA with specified class weights and dimensions.
@@ -100,7 +103,7 @@ def recalc_tulca_with_weights(
         n_classes: Number of classes
         s_dim: Time dimension
         v_dim: Space dimension
-        c_dim: Channel dimension
+        tulca_channel: Which channel to use for TULCA (0=attempts, 1=makes, 2=weighted, 3=misses)
         
     Returns:
         tuple: (projection_matrices, scaled_data, embedding)
@@ -110,11 +113,10 @@ def recalc_tulca_with_weights(
     w_bgs = [class_weights[i]["w_bg"] for i in range(n_classes)]
     w_bws = [class_weights[i]["w_bw"] for i in range(n_classes)]
 
-    # Ensure c_dim doesn't exceed original channel dimension
-    _, _, _, C_channels = tensor.shape
-    c_dim = int(max(1, min(c_dim, C_channels)))
+    # Extract only the specified channel for TULCA
+    tensor_single_channel = tensor[:, :, :, tulca_channel:tulca_channel+1]
 
-    n_components = np.array([s_dim, v_dim, c_dim])
+    n_components = np.array([s_dim, v_dim, 1])  # c_dim is always 1
 
     tulca = TULCA(
         n_components=n_components,
@@ -122,11 +124,11 @@ def recalc_tulca_with_weights(
     )
 
     # Initial fit
-    low_dim_tensor = tulca.fit_transform(tensor, labels)
+    low_dim_tensor = tulca.fit_transform(tensor_single_channel, labels)
 
     # Apply weights and refit
     tulca.fit_with_new_weights(w_tgs, w_bgs, w_bws)
-    low_dim_tensor = tulca.transform(tensor)
+    low_dim_tensor = tulca.transform(tensor_single_channel)
 
     proj_mats = tulca.get_projection_matrices()
 

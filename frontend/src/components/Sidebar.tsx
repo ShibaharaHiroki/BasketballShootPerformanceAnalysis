@@ -54,15 +54,15 @@ const Sidebar: React.FC = () => {
 
     // TULCA dimensions
     const [sDim, setSDim] = useState(4);
-    const [vDim, setVDim] = useState(160);
-    const [cDim, setCDim] = useState(3);
+    const [vDim, setVDim] = useState(135);
+    const [tulcaChannel, setTulcaChannel] = useState(0);  // 0=attempts, 1=makes, 2=weighted
 
     // Class weights
     const [selectedClass, setSelectedClass] = useState(0);
     const [classWeights, setClassWeights] = useState<ClassWeight[]>([
-        { w_tg: 1.0, w_bw: 1.0, w_bg: 1.0 },
-        { w_tg: 1.0, w_bw: 1.0, w_bg: 1.0 },
-        { w_tg: 1.0, w_bw: 1.0, w_bg: 1.0 },
+        { w_tg: 0.0, w_bw: 1.0, w_bg: 1.0 },
+        { w_tg: 0.0, w_bw: 1.0, w_bg: 1.0 },
+        { w_tg: 0.0, w_bw: 1.0, w_bg: 1.0 },
     ]);
 
     // Ensure selectedClass is within bounds
@@ -116,7 +116,7 @@ const Sidebar: React.FC = () => {
 
         setIsLoading(true);
         try {
-            const response = await apiClient.initialize(selectedPlayerIds, [2022], sDim, vDim, cDim);
+            const response = await apiClient.initialize(selectedPlayerIds, [2022], sDim, vDim, tulcaChannel);
             setEmbedding(response.embedding);
             setScaledData(response.scaled_data);
             setProjMats(response.proj_mats);
@@ -127,7 +127,7 @@ const Sidebar: React.FC = () => {
             setMetadata(response.metadata);
 
             // Update class weights array to match number of players
-            const newWeights = selectedPlayerIds.map(() => ({ w_tg: 1.0, w_bw: 1.0, w_bg: 1.0 }));
+            const newWeights = selectedPlayerIds.map(() => ({ w_tg: 0.0, w_bw: 1.0, w_bg: 1.0 }));
             setClassWeights(newWeights);
             setSelectedClass(0);
 
@@ -161,7 +161,7 @@ const Sidebar: React.FC = () => {
     const handleApplyWeights = async () => {
         setIsLoading(true);
         try {
-            const response = await apiClient.recomputeTulca(classWeights, sDim, vDim, cDim);
+            const response = await apiClient.recomputeTulca(classWeights, sDim, vDim, tulcaChannel);
             setEmbedding(response.embedding);
             setScaledData(response.scaled_data);
             setProjMats(response.proj_mats);
@@ -186,7 +186,7 @@ const Sidebar: React.FC = () => {
         }
     };
 
-    const [S, V, C] = tensorShape.length >= 3 ? [tensorShape[1], tensorShape[2], tensorShape[3]] : [4, 272, 3];
+    const [S, V] = tensorShape.length >= 3 ? [tensorShape[1], tensorShape[2]] : [4, 272];
 
     return (
         <Box p={4} h="100vh" overflowY="auto">
@@ -277,6 +277,28 @@ const Sidebar: React.FC = () => {
 
                 <Divider />
 
+                {/* Metric Selection */}
+                <Box>
+                    <Text fontWeight="bold" fontSize="sm" mb={2} color="white">
+                        Metric
+                    </Text>
+                    <Select
+                        size="sm"
+                        value={tulcaChannel}
+                        onChange={(e) => setTulcaChannel(Number(e.target.value))}
+                        mb={3}
+                        color="white"
+                        bg="gray.800"
+                    >
+                        <option value={0} style={{ color: 'black' }}>Attempts</option>
+                        <option value={1} style={{ color: 'black' }}>Makes</option>
+                        <option value={2} style={{ color: 'black' }}>Points</option>
+                        <option value={3} style={{ color: 'black' }}>Misses</option>
+                    </Select>
+                </Box>
+
+                <Divider />
+
                 {/* TULCA Dimensions */}
                 <Box>
                     <Text fontWeight="bold" fontSize="sm" mb={2} color="white">
@@ -308,23 +330,6 @@ const Sidebar: React.FC = () => {
                         onChange={setVDim}
                         min={1}
                         max={V}
-                        step={1}
-                        mb={3}
-                    >
-                        <SliderTrack>
-                            <SliderFilledTrack />
-                        </SliderTrack>
-                        <SliderThumb />
-                    </Slider>
-
-                    <Text fontSize="xs" mb={1} color="white">
-                        metric: {cDim}
-                    </Text>
-                    <Slider
-                        value={cDim}
-                        onChange={setCDim}
-                        min={1}
-                        max={C}
                         step={1}
                         mb={3}
                     >

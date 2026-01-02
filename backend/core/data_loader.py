@@ -124,8 +124,8 @@ def make_game_time_space_tensor_both(
         
     Returns:
         tuple: (tensor, metadata_dict)
-            tensor shape: (games, time_bins, spatial_cells, 3)
-            channels: 0=attempts, 1=makes, 2=weighted_makes
+            tensor shape: (games, time_bins, spatial_cells, 4)
+            channels: 0=attempts, 1=makes, 2=weighted_makes, 3=misses
     """
     required_cols = {
         "LOC_X", "LOC_Y",
@@ -192,12 +192,20 @@ def make_game_time_space_tensor_both(
                 w = 1.5 if "3PT" in shot_type else 1.0
                 data_4d[g_idx, t, y, x, 2] += w
 
-    # Reshape: (games, time, y, x, 3) → (games, time, y*x, 3)
-    tensor = data_4d.reshape(
+    # Add channel 3: Misses (Attempts - Makes)
+    data_5ch = np.zeros(
+        (len(game_ids), num_time_bins, grid_y_bins, grid_x_bins, 4),
+        dtype=np.float32,
+    )
+    data_5ch[:, :, :, :, :3] = data_4d
+    data_5ch[:, :, :, :, 3] = data_4d[:, :, :, :, 0] - data_4d[:, :, :, :, 1]  # misses = attempts - makes
+
+    # Reshape: (games, time, y, x, 4) → (games, time, y*x, 4)
+    tensor = data_5ch.reshape(
         len(game_ids),
         num_time_bins,
         grid_y_bins * grid_x_bins,
-        3,
+        4,
     )
 
     meta = {

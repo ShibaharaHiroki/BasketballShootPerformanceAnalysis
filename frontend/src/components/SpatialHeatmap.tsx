@@ -528,19 +528,6 @@ const SpatialHeatmap: React.FC = () => {
                         ))}
                     </Select>
 
-                    <Select
-                        size="xs"
-                        value={channel}
-                        onChange={(e) => setChannel(e.target.value)}
-                        w="120px"
-                        color="white"
-                        bg="gray.800"
-                    >
-
-                        <option value="attempts" style={{ color: 'black' }}>Attempts</option>
-                        <option value="points" style={{ color: 'black' }}>Points</option>
-                        <option value="made" style={{ color: 'black' }}>Made</option>
-                    </Select>
                 </HStack>
 
                 <Box h="calc(100% - 40px)" w="100%">

@@ -176,7 +176,7 @@ async def initialize(request: InitializeRequest):
             player_labels,
             s_dim=request.s_dim,
             v_dim=request.v_dim,
-            c_dim=request.c_dim,
+            tulca_channel=request.tulca_channel,
         )
 
         # Store in global state
@@ -237,7 +237,7 @@ async def recompute_tulca(request: RecomputeTulcaRequest):
             n_classes,
             request.s_dim,
             request.v_dim,
-            request.c_dim,
+            request.tulca_channel,
         )
 
         # Update state
@@ -272,6 +272,7 @@ async def analyze_clusters(request: AnalyzeClustersRequest):
 
         # Set normalize_zscore=True to enable Z-score normalization
         # Set normalize_zscore=False to use original implementation (no normalization)
+        # C is always 1 since TULCA is applied to a single channel
         contrib_tensor = compute_contribution_tensor(
             request.cluster1_idx,
             request.cluster2_idx,
@@ -279,7 +280,7 @@ async def analyze_clusters(request: AnalyzeClustersRequest):
             proj_mats,
             S_bins,
             V_cells,
-            C_channels,
+            1,  # C=1 since TULCA uses single channel
             RF_PARAMS,
             normalize_zscore=False,  # Change to True to enable normalization
         )

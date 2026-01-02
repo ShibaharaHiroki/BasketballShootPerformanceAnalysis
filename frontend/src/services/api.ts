@@ -49,14 +49,14 @@ export const apiClient = {
         seasons: number[] = [2022],
         sDim: number = 4,
         vDim: number = 160,
-        cDim: number = 3
+        tulcaChannel: number = 0  // 0=attempts, 1=makes, 2=weighted
     ): Promise<InitializeResponse> => {
         const response = await api.post('/initialize', {
             player_ids: playerIds,
             seasons,
             s_dim: sDim,
             v_dim: vDim,
-            c_dim: cDim,
+            tulca_channel: tulcaChannel,
         });
         return response.data;
     },
@@ -68,13 +68,13 @@ export const apiClient = {
         classWeights: ClassWeight[],
         sDim: number,
         vDim: number,
-        cDim: number
+        tulcaChannel: number = 0  // 0=attempts, 1=makes, 2=weighted
     ): Promise<RecomputeTulcaResponse> => {
         const response = await api.post('/recompute-tulca', {
             class_weights: classWeights,
             s_dim: sDim,
             v_dim: vDim,
-            c_dim: cDim,
+            tulca_channel: tulcaChannel,
         });
         return response.data;
     },

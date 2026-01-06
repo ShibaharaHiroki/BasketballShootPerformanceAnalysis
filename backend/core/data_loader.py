@@ -124,8 +124,8 @@ def make_game_time_space_tensor_both(
         
     Returns:
         tuple: (tensor, metadata_dict)
-            tensor shape: (games, time_bins, spatial_cells, 4)
-            channels: 0=attempts, 1=makes, 2=weighted_makes, 3=misses
+            tensor shape: (games, time_bins, spatial_cells, 5)
+            channels: 0=attempts, 1=makes, 2=points, 3=efg_weights, 4=misses
     """
     required_cols = {
         "LOC_X", "LOC_Y",
@@ -156,9 +156,9 @@ def make_game_time_space_tensor_both(
 
     game_ids = sorted(df["GAME_ID"].unique())
 
-    # 4D tensor (games, time, y, x, 3 channels)
+    # 4D tensor (games, time, y, x, 4 channels: attempts, makes, points, efg_weights)
     data_4d = np.zeros(
-        (len(game_ids), num_time_bins, grid_y_bins, grid_x_bins, 3),
+        (len(game_ids), num_time_bins, grid_y_bins, grid_x_bins, 4),
         dtype=np.float32,
     )
 
@@ -184,28 +184,31 @@ def make_game_time_space_tensor_both(
             # Channel 0: Attempts
             data_4d[g_idx, t, y, x, 0] += 1.0
 
-            # Channel 1 & 2: Makes and weighted makes
+            # Channel 1, 2, 3: Makes, actual points, and EFG weights
             if int(row["SHOT_MADE_FLAG"]) == 1:
                 data_4d[g_idx, t, y, x, 1] += 1.0
                 
                 shot_type = str(row["SHOT_TYPE"])
-                w = 1.5 if "3PT" in shot_type else 1.0
-                data_4d[g_idx, t, y, x, 2] += w
+                is_3pt = "3PT" in shot_type
+                pts = 3.0 if is_3pt else 2.0  # Actual point values
+                efg_weight = 1.5 if is_3pt else 1.0  # EFG weights for EFG% calculation
+                data_4d[g_idx, t, y, x, 2] += pts
+                data_4d[g_idx, t, y, x, 3] += efg_weight
 
-    # Add channel 3: Misses (Attempts - Makes)
-    data_5ch = np.zeros(
-        (len(game_ids), num_time_bins, grid_y_bins, grid_x_bins, 4),
+    # Add channel 4: Misses (Attempts - Makes)
+    data_6ch = np.zeros(
+        (len(game_ids), num_time_bins, grid_y_bins, grid_x_bins, 5),
         dtype=np.float32,
     )
-    data_5ch[:, :, :, :, :3] = data_4d
-    data_5ch[:, :, :, :, 3] = data_4d[:, :, :, :, 0] - data_4d[:, :, :, :, 1]  # misses = attempts - makes
+    data_6ch[:, :, :, :, :4] = data_4d
+    data_6ch[:, :, :, :, 4] = data_4d[:, :, :, :, 0] - data_4d[:, :, :, :, 1]  # misses = attempts - makes
 
-    # Reshape: (games, time, y, x, 4) → (games, time, y*x, 4)
-    tensor = data_5ch.reshape(
+    # Reshape: (games, time, y, x, 5) → (games, time, y*x, 5)
+    tensor = data_6ch.reshape(
         len(game_ids),
         num_time_bins,
         grid_y_bins * grid_x_bins,
-        4,
+        5,
     )
 
     meta = {

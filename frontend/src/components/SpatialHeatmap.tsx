@@ -3,7 +3,8 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Box, HStack, VStack, Divider, Select, Radio, RadioGroup, Text, useToast, Stack } from '@chakra-ui/react';
+import { Box, HStack, VStack, Divider, Radio, RadioGroup, Text, useToast, Stack, Menu, MenuButton, MenuList, MenuItem, Button } from '@chakra-ui/react';
+import { ChevronDownIcon } from '@chakra-ui/icons';
 import Plot from 'react-plotly.js';
 import { useAppContext } from '../context/AppContext';
 import { apiClient } from '../services/api';
@@ -55,8 +56,33 @@ const SpatialHeatmap: React.FC = () => {
 
     // Generate plot data
     useEffect(() => {
+        // Helper function to generate 3PT arc trace
+        const generate3PtArcTrace = () => {
+            const radius = 237.5;
+            const cornerX = 220;
+            const yBreak = Math.sqrt(radius * radius - cornerX * cornerX);
+            const thetaLeft = Math.atan2(yBreak, -cornerX);
+            const thetaRight = Math.atan2(yBreak, cornerX);
+            const numPoints = 200;
+            const thetaArr: number[] = [];
+            for (let i = 0; i <= numPoints; i++) {
+                const t = thetaLeft + (thetaRight - thetaLeft) * (i / numPoints);
+                thetaArr.push(t);
+            }
+            return {
+                x: thetaArr.map((t) => radius * Math.cos(t)),
+                y: thetaArr.map((t) => radius * Math.sin(t)),
+                mode: 'lines' as const,
+                type: 'scatter' as const,
+                line: { color: 'white', width: 1 },
+                showlegend: false,
+                hoverinfo: 'skip' as const,
+            };
+        };
+
         if (!contribData || !metadata) {
-            setPlotData([]);
+            // Still show the 3PT arc even without data
+            setPlotData([generate3PtArcTrace()]);
             return;
         }
 
@@ -454,9 +480,7 @@ const SpatialHeatmap: React.FC = () => {
                                     );
                                 })}
                             </VStack>
-                        ) : (
-                            <Text fontSize="xs" color="gray.500">No games selected</Text>
-                        )}
+                        ) : null}
                     </Box>
 
                     <Divider borderColor="gray.600" />
@@ -503,9 +527,7 @@ const SpatialHeatmap: React.FC = () => {
                                     );
                                 })}
                             </VStack>
-                        ) : (
-                            <Text fontSize="xs" color="gray.500">No games selected</Text>
-                        )}
+                        ) : null}
                     </Box>
                 </VStack>
             </Box>
@@ -513,20 +535,35 @@ const SpatialHeatmap: React.FC = () => {
             {/* Spatial Heatmap */}
             <Box flex="7" h="100%" w="100%">
                 <HStack spacing={2} mb={2} fontSize="xs" flexWrap="wrap">
-                    <Select
-                        size="xs"
-                        value={timeBin}
-                        onChange={(e) => setTimeBin(e.target.value)}
-                        w="120px"
-                        color="white"
-                        bg="gray.800"
-                    >
-                        {timeBinOptions.map((opt) => (
-                            <option key={opt.value} value={opt.value} style={{ color: 'black' }}>
-                                {opt.label}
-                            </option>
-                        ))}
-                    </Select>
+                    <Menu>
+                        <MenuButton
+                            as={Button}
+                            size="xs"
+                            rightIcon={<ChevronDownIcon />}
+                            bg="gray.800"
+                            color="white"
+                            _hover={{ bg: 'gray.700' }}
+                            _active={{ bg: 'gray.600' }}
+                            w="120px"
+                            textAlign="left"
+                            fontWeight="normal"
+                        >
+                            {timeBinOptions.find(opt => opt.value === timeBin)?.label || '1Q'}
+                        </MenuButton>
+                        <MenuList bg="gray.800" borderColor="gray.600">
+                            {timeBinOptions.map((opt) => (
+                                <MenuItem
+                                    key={opt.value}
+                                    bg="gray.800"
+                                    color="white"
+                                    _hover={{ bg: 'gray.700' }}
+                                    onClick={() => setTimeBin(opt.value)}
+                                >
+                                    {opt.label}
+                                </MenuItem>
+                            ))}
+                        </MenuList>
+                    </Menu>
 
                 </HStack>
 

@@ -19,7 +19,7 @@ class InitializeRequest(BaseModel):
     seasons: List[int] = Field(default=[2022])
     s_dim: int = Field(default=4, ge=1)
     v_dim: int = Field(default=160, ge=1)
-    tulca_channel: int = Field(default=0, ge=0, le=2)  # 0=attempts, 1=makes, 2=weighted
+    tulca_channel: int = Field(default=0, ge=0, le=4)  # 0=attempts, 1=makes, 2=points, 3=efg_weights, 4=misses
 
 
 class InitializeResponse(BaseModel):
@@ -39,7 +39,7 @@ class RecomputeTulcaRequest(BaseModel):
     class_weights: List[ClassWeight]
     s_dim: int = Field(ge=1)
     v_dim: int = Field(ge=1)
-    tulca_channel: int = Field(default=0, ge=0, le=2)  # 0=attempts, 1=makes, 2=weighted
+    tulca_channel: int = Field(default=0, ge=0, le=4)  # 0=attempts, 1=makes, 2=points, 3=efg_weights, 4=misses
 
 
 class RecomputeTulcaResponse(BaseModel):

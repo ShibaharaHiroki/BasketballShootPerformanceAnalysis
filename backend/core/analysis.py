@@ -27,6 +27,7 @@ def unfold_and_scale(low_dim_tensor: np.ndarray) -> np.ndarray:
 def standardize_tensor_for_tulca(tensor: np.ndarray) -> np.ndarray:
     """
     Standardize the original shot tensor before feeding into TULCA.
+    Each channel is standardized independently.
     
     Args:
         tensor: Input tensor (T, S, V, C)  - games × time × space × channels
@@ -34,14 +35,17 @@ def standardize_tensor_for_tulca(tensor: np.ndarray) -> np.ndarray:
     Returns:
         Standardized tensor with same shape
     """
-    T_ = tensor.shape[0]
-    rest_shape = tensor.shape[1:]
-    data_2d = tensor.reshape(T_, -1)
-
-    scaler = StandardScaler()
-    data_scaled = scaler.fit_transform(data_2d)
-
-    return data_scaled.reshape((T_,) + rest_shape)
+    T_, S_, V_, C_ = tensor.shape
+    result = np.zeros_like(tensor)
+    
+    # Standardize each channel independently
+    for c in range(C_):
+        channel_data = tensor[:, :, :, c].reshape(T_, -1)  # (T, S*V)
+        scaler = StandardScaler()
+        channel_scaled = scaler.fit_transform(channel_data)
+        result[:, :, :, c] = channel_scaled.reshape(T_, S_, V_)
+    
+    return result
 
 
 def compute_embedding_and_projections(

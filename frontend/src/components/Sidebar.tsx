@@ -13,10 +13,14 @@ import {
     SliderTrack,
     SliderFilledTrack,
     SliderThumb,
-    Select,
     Divider,
     useToast,
+    Menu,
+    MenuButton,
+    MenuList,
+    MenuItem,
 } from '@chakra-ui/react';
+import { ChevronDownIcon } from '@chakra-ui/icons';
 import { useAppContext } from '../context/AppContext';
 import { apiClient } from '../services/api';
 import type { ClassWeight, AvailablePlayer } from '../types';
@@ -54,7 +58,7 @@ const Sidebar: React.FC = () => {
 
     // TULCA dimensions
     const [sDim, setSDim] = useState(4);
-    const [vDim, setVDim] = useState(135);
+    const [vDim, setVDim] = useState(150);
     const [tulcaChannel, setTulcaChannel] = useState(0);  // 0=attempts, 1=makes, 2=weighted
 
     // Class weights
@@ -282,19 +286,29 @@ const Sidebar: React.FC = () => {
                     <Text fontWeight="bold" fontSize="sm" mb={2} color="white">
                         Metric
                     </Text>
-                    <Select
-                        size="sm"
-                        value={tulcaChannel}
-                        onChange={(e) => setTulcaChannel(Number(e.target.value))}
-                        mb={3}
-                        color="white"
-                        bg="gray.800"
-                    >
-                        <option value={0} style={{ color: 'black' }}>Attempts</option>
-                        <option value={1} style={{ color: 'black' }}>Makes</option>
-                        <option value={2} style={{ color: 'black' }}>Points</option>
-                        <option value={3} style={{ color: 'black' }}>Misses</option>
-                    </Select>
+                    <Menu>
+                        <MenuButton
+                            as={Button}
+                            size="sm"
+                            rightIcon={<ChevronDownIcon />}
+                            bg="gray.800"
+                            color="white"
+                            _hover={{ bg: 'gray.700' }}
+                            _active={{ bg: 'gray.600' }}
+                            w="100%"
+                            textAlign="left"
+                            fontWeight="normal"
+                            mb={3}
+                        >
+                            {tulcaChannel === 0 ? 'Attempts' : tulcaChannel === 1 ? 'Makes' : tulcaChannel === 2 ? 'Points' : 'Misses'}
+                        </MenuButton>
+                        <MenuList bg="gray.800" borderColor="gray.600">
+                            <MenuItem bg="gray.800" color="white" _hover={{ bg: 'gray.700' }} onClick={() => setTulcaChannel(0)}>Attempts</MenuItem>
+                            <MenuItem bg="gray.800" color="white" _hover={{ bg: 'gray.700' }} onClick={() => setTulcaChannel(1)}>Makes</MenuItem>
+                            <MenuItem bg="gray.800" color="white" _hover={{ bg: 'gray.700' }} onClick={() => setTulcaChannel(2)}>Points</MenuItem>
+                            <MenuItem bg="gray.800" color="white" _hover={{ bg: 'gray.700' }} onClick={() => setTulcaChannel(4)}>Misses</MenuItem>
+                        </MenuList>
+                    </Menu>
                 </Box>
 
                 <Divider />
@@ -351,20 +365,36 @@ const Sidebar: React.FC = () => {
                     <Text fontSize="xs" mb={1} color="white">
                         Player:
                     </Text>
-                    <Select
-                        size="sm"
-                        value={selectedClass}
-                        onChange={(e) => setSelectedClass(Number(e.target.value))}
-                        mb={3}
-                        color="white"
-                        bg="gray.800"
-                    >
-                        {currentPlayerNames.map((name, idx) => (
-                            <option key={idx} value={idx} style={{ color: 'black' }}>
-                                {name}
-                            </option>
-                        ))}
-                    </Select>
+                    <Menu>
+                        <MenuButton
+                            as={Button}
+                            size="sm"
+                            rightIcon={<ChevronDownIcon />}
+                            bg="gray.800"
+                            color="white"
+                            _hover={{ bg: 'gray.700' }}
+                            _active={{ bg: 'gray.600' }}
+                            w="100%"
+                            textAlign="left"
+                            fontWeight="normal"
+                            mb={3}
+                        >
+                            {currentPlayerNames[selectedClass] || 'Select Player'}
+                        </MenuButton>
+                        <MenuList bg="gray.800" borderColor="gray.600">
+                            {currentPlayerNames.map((name, idx) => (
+                                <MenuItem
+                                    key={idx}
+                                    bg="gray.800"
+                                    color="white"
+                                    _hover={{ bg: 'gray.700' }}
+                                    onClick={() => setSelectedClass(idx)}
+                                >
+                                    {name}
+                                </MenuItem>
+                            ))}
+                        </MenuList>
+                    </Menu>
 
                     <Text fontSize="xs" mb={1} color="white">
                         target: {currentWeight.w_tg.toFixed(1)}

@@ -37,7 +37,8 @@ def aggregate_cluster_prob_raw(tensor_raw: np.ndarray, cluster_idx, weighted: bo
         tuple: (probabilities, attempts) both shaped (time, space)
     """
     attempts = aggregate_cluster_counts_raw(tensor_raw, cluster_idx, channel=0)
-    num = aggregate_cluster_counts_raw(tensor_raw, cluster_idx, channel=2 if weighted else 1)
+    # For EFG%, use channel 3 (EFG weights: 1.0/1.5), else use channel 1 (regular makes)
+    num = aggregate_cluster_counts_raw(tensor_raw, cluster_idx, channel=3 if weighted else 1)
 
     # Avoid division by zero
     prob = np.divide(num, attempts, out=np.zeros_like(num, dtype=np.float32), where=(attempts > 0))

@@ -528,9 +528,7 @@ const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndic
                     </RadioGroup>
                 </HStack>
                 <Box h="280px" borderRadius="md" bg="black" display="flex" alignItems="center" justifyContent="center">
-                    {!hasData ? (
-                        <Text fontSize="sm" color="white">No cluster selected</Text>
-                    ) : isLoading ? (
+                    {!hasData ? null : isLoading ? (
                         <Spinner color={clusterColor} />
                     ) : spatialMode === 'heatmap' && spatialData.length > 0 && metadata ? (
                         renderHeatmap(spatialData, metadata, metric)
@@ -563,9 +561,7 @@ const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndic
             <Box>
                 <Text fontSize="xs" fontWeight="bold" color="white" mb={2}>Shot Types</Text>
                 <Box borderRadius="md" bg="black" display="flex" alignItems="center" justifyContent="center">
-                    {!hasData ? (
-                        <Text fontSize="sm" color="gray.500">No cluster selected</Text>
-                    ) : shotTypeStats.length > 0 ? (
+                    {!hasData ? null : shotTypeStats.length > 0 ? (
                         renderShotTypesChart(shotTypeStats, clusterColor)
                     ) : (
                         <Spinner size="sm" color={clusterColor} />
@@ -577,11 +573,9 @@ const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndic
 
             {/* Time Profile */}
             <Box>
-                <Text fontSize="xs" fontWeight="bold" color="white" mb={2}>Time Profile</Text>
+                <Text fontSize="xs" fontWeight="bold" color="white" mb={2}>Time</Text>
                 <Box borderRadius="md" bg="black" display="flex" alignItems="center" justifyContent="center">
-                    {!hasData ? (
-                        <Text fontSize="sm" color="gray.500">No cluster selected</Text>
-                    ) : timeProfileData.attempts.length > 0 ? (
+                    {!hasData ? null : timeProfileData.attempts.length > 0 ? (
                         renderTimeProfile(timeProfileData, clusterColor)
                     ) : (
                         <Spinner size="sm" color={clusterColor} />

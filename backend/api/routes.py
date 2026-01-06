@@ -331,7 +331,8 @@ async def aggregate_cluster(request: AggregateClusterRequest):
             attempts_list = attempts[request.time_bin, :].flatten().tolist()
         else:
             # Aggregate across time
-            num_channel = 2 if request.weighted else 1
+            # For EFG%, use channel 3 (EFG weights: 1.0/1.5), else use channel 1 (regular makes)
+            num_channel = 3 if request.weighted else 1
             num = aggregate_cluster_counts_raw(tensor_raw, request.cluster_idx, channel=num_channel).sum(axis=0)
             att = attempts.sum(axis=0)
             values = np.divide(num, att, out=np.zeros_like(num, dtype=np.float32), where=(att > 0)).flatten().tolist()

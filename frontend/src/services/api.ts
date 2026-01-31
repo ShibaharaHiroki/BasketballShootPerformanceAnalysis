@@ -34,9 +34,10 @@ export const apiClient = {
     /**
      * Get available players for specified seasons
      */
-    getPlayers: async (seasons: number[] = [2022]): Promise<GetPlayersResponse> => {
+    getPlayers: async (seasons: number[] = [2022], league: string = 'nba'): Promise<GetPlayersResponse> => {
         const response = await api.post('/players', {
             seasons,
+            league,
         });
         return response.data;
     },
@@ -49,7 +50,9 @@ export const apiClient = {
         seasons: number[] = [2022],
         sDim: number = 4,
         vDim: number = 160,
-        tulcaChannel: number = 0  // 0=attempts, 1=makes, 2=weighted
+        tulcaChannel: number = 0,  // 0=attempts, 1=makes, 2=weighted
+        league: string = 'nba',     // 'nba' or 'bleague'
+        analysisMode: string = 'player'  // 'player' or 'team_season'
     ): Promise<InitializeResponse> => {
         const response = await api.post('/initialize', {
             player_ids: playerIds,
@@ -57,6 +60,8 @@ export const apiClient = {
             s_dim: sDim,
             v_dim: vDim,
             tulca_channel: tulcaChannel,
+            league,
+            analysis_mode: analysisMode,
         });
         return response.data;
     },

@@ -33,16 +33,32 @@ function categorizeShotTypes(shots: ShotData[]): ShotTypeStats[] {
         'Layup': { attempts: 0, makes: 0, weighted_makes: 0 },
         'Floater': { attempts: 0, makes: 0, weighted_makes: 0 },
         'Hook Shot': { attempts: 0, makes: 0, weighted_makes: 0 },
-        'Dunk': { attempts: 0, makes: 0, weighted_makes: 0 }
+        'Dunk': { attempts: 0, makes: 0, weighted_makes: 0 },
+        'Other': { attempts: 0, makes: 0, weighted_makes: 0 }
     };
 
     shots.forEach(shot => {
         const action = shot.ACTION_TYPE.toLowerCase();
         const shotType = shot.SHOT_TYPE || '';
-        let category = 'Jump Shot'; // Default category
         let is3PT = shotType.includes('3PT');
+        let category = 'Other'; // Default to Other
 
-        if (action.includes('dunk')) {
+        // Check for exact matches first (B.League backend categories)
+        if (shot.ACTION_TYPE === 'Jump Shot') {
+            category = 'Jump Shot';
+        } else if (shot.ACTION_TYPE === 'Layup') {
+            category = 'Layup';
+        } else if (shot.ACTION_TYPE === 'Floater') {
+            category = 'Floater';
+        } else if (shot.ACTION_TYPE === 'Hook Shot') {
+            category = 'Hook Shot';
+        } else if (shot.ACTION_TYPE === 'Dunk') {
+            category = 'Dunk';
+        } else if (shot.ACTION_TYPE === 'Other') {
+            category = 'Other';
+        }
+        // Then check for keyword matches (NBA detailed ACTION_TYPE)
+        else if (action.includes('dunk')) {
             category = 'Dunk';
         } else if (action.includes('layup') || action.includes('lay up') || action.includes('lay-up')) {
             category = 'Layup';
@@ -287,17 +303,85 @@ function get3PTArcTrace() {
     };
 }
 
+// RawDataExplorer.tsx
+
+// frontend/src/components/RawDataExplorer.tsx
+
 function renderHeatmap(spatialData: number[], metadata: any, metric: 'attempts' | 'fg' | 'wfg') {
     const gridYBins = metadata.grid_y_bins || 16;
     const gridXBins = metadata.grid_x_bins || 17;
-    const z = [];
+    
+    // 【修正点1】正規化のために総試投数を計算
+    // metricが 'attempts' の場合のみ計算（FG%などの場合は正規化不要）
+    const totalAttempts = metric === 'attempts' 
+        ? spatialData.reduce((sum, val) => sum + val, 0) 
+        : 1;
+
+    const zRaw = [];     // 元の値（カウント数など）
+    const zDisplay = []; // 表示用の値（割合または確率）
+
     for (let i = 0; i < gridYBins; i++) {
-        z.push(spatialData.slice(i * gridXBins, (i + 1) * gridXBins));
+        const rawRow = spatialData.slice(i * gridXBins, (i + 1) * gridXBins);
+        zRaw.push(rawRow);
+
+        if (metric === 'attempts') {
+            // 【修正点2】各セルの値を総試投数で割り、割合（0.0 ~ 1.0）に変換
+            // ゼロ除算を防ぐため、totalAttemptsが0の場合は1で割る
+            const divisor = totalAttempts > 0 ? totalAttempts : 1;
+            zDisplay.push(rawRow.map(val => val / divisor));
+        } else {
+            // FG%などはそのまま使用
+            zDisplay.push(rawRow);
+        }
     }
-    const label = metric === 'attempts' ? 'Attempts' : metric === 'fg' ? 'FG%' : 'EFG%';
-    const data: any[] = [{ x: metadata.x_edges, y: metadata.y_edges, z: z, type: 'heatmap', colorscale: 'Viridis', showscale: true, colorbar: { title: label, len: 0.7, tickfont: { color: 'white' }, titlefont: { color: 'white' } } }];
+
+    // ラベルの変更
+    const label = metric === 'attempts' ? 'Frequency' : metric === 'fg' ? 'FG%' : 'EFG%';
+    
+    // ツールチップとカラーバーの設定
+    // Attemptsの場合はパーセント表示にする
+    const hoverTemplate = metric === 'attempts'
+        ? '<b>Freq</b>: %{z:.1%}<br><b>Count</b>: %{customdata} / ' + totalAttempts + '<br>x=%{x:.1f}, y=%{y:.1f}<extra></extra>'
+        : '<b>%{z:.1f}%</b><br>x=%{x:.1f}, y=%{y:.1f}<extra></extra>';
+
+    const colorbarSettings = {
+        title: label,
+        len: 0.7,
+        tickfont: { color: 'white' },
+        titlefont: { color: 'white' },
+        tickformat: metric === 'attempts' ? '.0%' : undefined, // 割合の場合は%表記
+    };
+
+    const data: any[] = [{ 
+        x: metadata.x_edges, 
+        y: metadata.y_edges, 
+        z: zDisplay,       // 正規化された値
+        customdata: zRaw,  // 元の値（ホバー表示用）
+        type: 'heatmap', 
+        colorscale: 'Viridis', 
+        showscale: true, 
+        colorbar: colorbarSettings,
+        hovertemplate: hoverTemplate
+    }];
+
     data.push(get3PTArcTrace() as any);
-    return <Plot data={data} layout={{ autosize: true, height: 280, margin: { l: 20, r: 40, t: 10, b: 20 }, paper_bgcolor: 'black', plot_bgcolor: 'black', xaxis: { range: [-250, 250], showgrid: false, zeroline: false, showticklabels: false }, yaxis: { range: [-47.5, 422.5], showgrid: false, zeroline: false, scaleanchor: 'x', scaleratio: 1.0, showticklabels: false }, shapes: getBasketballCourtShapes() } as any} config={{ displayModeBar: false }} style={{ width: '100%', height: '280px' }} useResizeHandler />;
+
+    return <Plot 
+        data={data} 
+        layout={{ 
+            autosize: true, 
+            height: 280, 
+            margin: { l: 20, r: 40, t: 10, b: 20 }, 
+            paper_bgcolor: 'black', 
+            plot_bgcolor: 'black', 
+            xaxis: { range: [-250, 250], showgrid: false, zeroline: false, showticklabels: false }, 
+            yaxis: { range: [-47.5, 422.5], showgrid: false, zeroline: false, scaleanchor: 'x', scaleratio: 1.0, showticklabels: false }, 
+            shapes: getBasketballCourtShapes() 
+        } as any} 
+        config={{ displayModeBar: false }} 
+        style={{ width: '100%', height: '280px' }} 
+        useResizeHandler 
+    />;
 }
 
 function renderShotMap(shotData: ShotData[]) {
@@ -439,30 +523,34 @@ const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndic
     const [shotData, setShotData] = useState<ShotData[]>([]);
     const [shotTypeStats, setShotTypeStats] = useState<ShotTypeStats[]>([]);
     const [timeProfileData, setTimeProfileData] = useState<{ attempts: number[], fg: number[], wfg: number[] }>({ attempts: [], fg: [], wfg: [] });
+    const [selectedQuarter, setSelectedQuarter] = useState<'all' | '0' | '1' | '2' | '3'>('all');
 
     const clusterColor = clusterNumber === '1' ? 'red.500' : 'blue.500';
     const clusterName = `Cluster ${clusterNumber}`;
+
+    // Calculate time_bin value for API calls
+    const timeBinValue = selectedQuarter === 'all' ? null : parseInt(selectedQuarter);
 
     useEffect(() => {
         if (!clusterIndices || clusterIndices.length === 0) { setSpatialData([]); return; }
         setIsLoading(true);
         const channel = metric === 'attempts' ? 0 : metric === 'fg' ? 1 : 2;
         const weighted = metric === 'wfg';  // Only wfg should use weighted calculation
-        fetch('http://localhost:8000/api/aggregate-cluster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, channel, weighted, time_bin: null }) })
+        fetch('http://localhost:8000/api/aggregate-cluster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, channel, weighted, time_bin: timeBinValue }) })
             .then(res => res.json()).then(data => { setSpatialData(data.values || []); setIsLoading(false); }).catch(err => { console.error('Failed to fetch spatial data:', err); setIsLoading(false); });
-    }, [clusterIndices, metric]);
+    }, [clusterIndices, metric, timeBinValue]);
 
     useEffect(() => {
         if (!clusterIndices || clusterIndices.length === 0 || spatialMode !== 'shotmap') { setShotData([]); return; }
-        fetch('http://localhost:8000/api/cluster-shots', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, time_bin: null }) })
+        fetch('http://localhost:8000/api/cluster-shots', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, time_bin: timeBinValue }) })
             .then(res => res.json()).then(data => setShotData(data.shots || [])).catch(err => console.error('Failed to fetch shot data:', err));
-    }, [clusterIndices, spatialMode]);
+    }, [clusterIndices, spatialMode, timeBinValue]);
 
     useEffect(() => {
         if (!clusterIndices || clusterIndices.length === 0) { setShotTypeStats([]); return; }
-        fetch('http://localhost:8000/api/cluster-shots', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, time_bin: null }) })
+        fetch('http://localhost:8000/api/cluster-shots', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, time_bin: timeBinValue }) })
             .then(res => res.json()).then(data => { const shots = data.shots || []; setShotTypeStats(categorizeShotTypes(shots)); }).catch(err => console.error('Failed to fetch shot type data:', err));
-    }, [clusterIndices]);
+    }, [clusterIndices, timeBinValue]);
 
     useEffect(() => {
         if (!clusterIndices || clusterIndices.length === 0) { setTimeProfileData({ attempts: [], fg: [], wfg: [] }); return; }
@@ -511,6 +599,32 @@ const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndic
     return (
         <VStack spacing={2} align="stretch" p={2} h="100%" borderWidth="2px" borderColor={hasData ? clusterColor : 'gray.600'} borderRadius="md" bg="black" overflowY="auto">
             <Heading size="sm" color={hasData ? clusterColor : 'gray.400'}>{clusterName} {hasData && `(${clusterIndices.length} games)`}</Heading>
+
+            {/* Quarter Selection */}
+            <Box mb={2}>
+                <HStack spacing={2}>
+                    <Text fontSize="xs" fontWeight="bold" color="white">Quarter:</Text>
+                    <RadioGroup size="sm" value={selectedQuarter} onChange={(val) => setSelectedQuarter(val as 'all' | '0' | '1' | '2' | '3')}>
+                        <Stack direction="row" fontSize="xs" spacing={2}>
+                            <Radio value="all" colorScheme={clusterNumber === '1' ? 'red' : 'blue'}>
+                                <Text color="white">All</Text>
+                            </Radio>
+                            <Radio value="0" colorScheme={clusterNumber === '1' ? 'red' : 'blue'}>
+                                <Text color="white">1Q</Text>
+                            </Radio>
+                            <Radio value="1" colorScheme={clusterNumber === '1' ? 'red' : 'blue'}>
+                                <Text color="white">2Q</Text>
+                            </Radio>
+                            <Radio value="2" colorScheme={clusterNumber === '1' ? 'red' : 'blue'}>
+                                <Text color="white">3Q</Text>
+                            </Radio>
+                            <Radio value="3" colorScheme={clusterNumber === '1' ? 'red' : 'blue'}>
+                                <Text color="white">4Q</Text>
+                            </Radio>
+                        </Stack>
+                    </RadioGroup>
+                </HStack>
+            </Box>
 
             {/* Spatial Visualization */}
             <Box>

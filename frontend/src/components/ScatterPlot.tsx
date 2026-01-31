@@ -9,6 +9,7 @@ import { useAppContext } from '../context/AppContext';
 import type { PlotSelectionEvent } from 'plotly.js';
 
 // Extended color palette for multiple players
+// Extended color palette for multiple players
 const PLAYER_COLORS = [
     '#e74c3c', // Red
     '#3498db', // Blue

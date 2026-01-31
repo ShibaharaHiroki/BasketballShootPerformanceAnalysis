@@ -20,6 +20,8 @@ class InitializeRequest(BaseModel):
     s_dim: int = Field(default=4, ge=1)
     v_dim: int = Field(default=160, ge=1)
     tulca_channel: int = Field(default=0, ge=0, le=4)  # 0=attempts, 1=makes, 2=points, 3=efg_weights, 4=misses
+    league: str = Field(default="nba")  # "nba" or "bleague"
+    analysis_mode: str = Field(default="player")  # "player" or "team_season"
 
 
 class InitializeResponse(BaseModel):
@@ -57,7 +59,7 @@ class AnalyzeClustersRequest(BaseModel):
 
 class AnalyzeClustersResponse(BaseModel):
     """Response from cluster analysis."""
-    contrib_tensor: List[List[List[float]]]  # (S, V, C)
+    contrib_tensor: List[List[float]]  # (S, V) - 2D since TULCA operates on single channel
 
 
 class AggregateClusterRequest(BaseModel):
@@ -111,6 +113,7 @@ class PlayerInfo(BaseModel):
 class GetPlayersRequest(BaseModel):
     """Request to get available players."""
     seasons: List[int] = Field(default=[2022])
+    league: str = Field(default="nba")  # "nba" or "bleague"
 
 
 class GetPlayersResponse(BaseModel):

@@ -14,8 +14,7 @@ const SpatialHeatmap: React.FC = () => {
     const toast = useToast();
 
     const [timeBin, setTimeBin] = useState<string>('0');
-    const [channel, setChannel] = useState<string>('attempts');
-    const [contribData, setContribData] = useState<number[][][] | null>(null);
+    const [contribData, setContribData] = useState<number[][] | null>(null);
     const [plotData, setPlotData] = useState<any[]>([]);
 
     const S_bins = tensorShape.length > 0 ? tensorShape[1] : 4;
@@ -101,7 +100,8 @@ const SpatialHeatmap: React.FC = () => {
         const ys: number[] = [];
         const vals: number[] = [];
 
-        // Aggregate contribution based on channel selection
+        // Aggregate contribution based on time bin selection
+        // contrib_tensor is now 2D: (time_bins, spatial_cells)
         for (let iy = 0; iy < gridYBins; iy++) {
             for (let ix = 0; ix < gridXBins; ix++) {
                 const cellIdx = iy * gridXBins + ix;
@@ -112,27 +112,11 @@ const SpatialHeatmap: React.FC = () => {
                 if (timeBin === 'all') {
                     // Sum across all time bins
                     for (let t = 0; t < S_bins; t++) {
-                        if (channel === 'all') {
-                            val += contribData[t][cellIdx][0] + contribData[t][cellIdx][1] + contribData[t][cellIdx][2];  // all channels
-                        } else if (channel === 'attempts') {
-                            val += contribData[t][cellIdx][0];  // attempts
-                        } else if (channel === 'points') {
-                            val += contribData[t][cellIdx][2];  // weighted_makes (points)
-                        } else {  // made
-                            val += contribData[t][cellIdx][1];  // makes
-                        }
+                        val += contribData[t][cellIdx];
                     }
                 } else {
                     const t = parseInt(timeBin);
-                    if (channel === 'all') {
-                        val = contribData[t][cellIdx][0] + contribData[t][cellIdx][1] + contribData[t][cellIdx][2];  // all channels
-                    } else if (channel === 'attempts') {
-                        val = contribData[t][cellIdx][0];  // attempts
-                    } else if (channel === 'points') {
-                        val = contribData[t][cellIdx][2];  // weighted_makes (points)
-                    } else {  // made
-                        val = contribData[t][cellIdx][1];  // makes
-                    }
+                    val = contribData[t][cellIdx];
                 }
                 vals.push(val);
             }
@@ -196,7 +180,7 @@ const SpatialHeatmap: React.FC = () => {
         });
 
         setPlotData(traces);
-    }, [contribData, timeBin, channel, metadata, gridXBins, gridYBins, S_bins]);
+    }, [contribData, timeBin, metadata, gridXBins, gridYBins, S_bins]);
 
     // NBA half-court visualization - Based on official NBA dimensions
     // Coordinate system: X from -250 to 250 (50 feet wide), Y from -47.5 to 422.5 (47 feet deep)
@@ -414,10 +398,51 @@ const SpatialHeatmap: React.FC = () => {
     const cluster2Players = getClusterPlayers(cluster2);
 
     // Calculate timeline range
+    // For team_season mode, game IDs are encoded as season*1000000 + original_id
+    // Normalize by extracting original game ID for timeline positioning
+    const normalizeGameId = (gameId: number) => {
+        // If gameId is > 1000000, it's encoded with season prefix
+        if (gameId >= 1000000) {
+            return gameId % 1000000; // Extract original game ID
+        }
+        return gameId;
+    };
+
+    // Detect team_season mode by checking if playerNames look like seasons
+    const isTeamSeasonMode = playerNames.length === 2 &&
+        (playerNames[0] === '2022-23' || playerNames[0] === '2023-24');
+
     const allGames = [...cluster1Players, ...cluster2Players];
-    const minGameId = allGames.length > 0 ? Math.min(...allGames.map(g => g.gameId)) : 0;
-    const maxGameId = allGames.length > 0 ? Math.max(...allGames.map(g => g.gameId)) : 1;
+
+    // Calculate min/max per season for team_season mode
+    const getSeasonRange = (seasonIdx: number) => {
+        const seasonGames = allGames.filter(g => g.playerIdx === seasonIdx);
+        const normalizedIds = seasonGames.map(g => normalizeGameId(g.gameId));
+        if (normalizedIds.length === 0) return { min: 0, max: 1, range: 1 };
+        const min = Math.min(...normalizedIds);
+        const max = Math.max(...normalizedIds);
+        return { min, max, range: max - min || 1 };
+    };
+
+    // For non-team_season mode, use global range
+    const normalizedGameIds = allGames.map(g => normalizeGameId(g.gameId));
+    const minGameId = normalizedGameIds.length > 0 ? Math.min(...normalizedGameIds) : 0;
+    const maxGameId = normalizedGameIds.length > 0 ? Math.max(...normalizedGameIds) : 1;
     const gameRange = maxGameId - minGameId || 1;
+
+    // Helper to get normalized position
+    const getGamePosition = (gameId: number, playerIdx?: number) => {
+        const normalized = normalizeGameId(gameId);
+
+        if (isTeamSeasonMode && playerIdx !== undefined) {
+            // For team_season mode, use per-season range
+            const { min, range } = getSeasonRange(playerIdx);
+            return ((normalized - min) / range) * 100;
+        }
+
+        // Default: use global range
+        return ((normalized - minGameId) / gameRange) * 100;
+    };
 
     // Player colors (same as ScatterPlot)
     const PLAYER_COLORS = [
@@ -458,7 +483,7 @@ const SpatialHeatmap: React.FC = () => {
                                             </Text>
                                             <Box position="relative" h="12px" bg="gray.700" borderRadius="full">
                                                 {playerGames.map((p, idx) => {
-                                                    const position = ((p.gameId - minGameId) / gameRange) * 100;
+                                                    const position = getGamePosition(p.gameId, playerIdx);
                                                     return (
                                                         <Box
                                                             key={idx}
@@ -505,7 +530,7 @@ const SpatialHeatmap: React.FC = () => {
                                             </Text>
                                             <Box position="relative" h="12px" bg="gray.700" borderRadius="full">
                                                 {playerGames.map((p, idx) => {
-                                                    const position = ((p.gameId - minGameId) / gameRange) * 100;
+                                                    const position = getGamePosition(p.gameId, playerIdx);
                                                     return (
                                                         <Box
                                                             key={idx}

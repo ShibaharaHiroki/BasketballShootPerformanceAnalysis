@@ -68,15 +68,15 @@ def compute_embedding_and_projections(
     Returns:
         tuple: (projection_matrices, scaled_data, embedding)
     """
-    # Extract only the specified channel for TULCA
-    tensor_single_channel = tensor[:, :, :, tulca_channel:tulca_channel+1]
+    # Extract only the specified channel for TULCA as a 3D array
+    tensor_3d = tensor[:, :, :, tulca_channel]  # Shape: (games, time, space)
     
     tulca = TULCA(
-        n_components=np.array([s_dim, v_dim, 1]),  # c_dim is always 1
+        n_components=np.array([s_dim, v_dim]),  # 2D: time and space only
         optimization_method="evd",
     )
 
-    low_dim_tensor = tulca.fit_transform(tensor_single_channel, labels)
+    low_dim_tensor = tulca.fit_transform(tensor_3d, labels)
     proj_mats = tulca.get_projection_matrices()
 
     scaled_data = unfold_and_scale(low_dim_tensor)
@@ -117,10 +117,10 @@ def recalc_tulca_with_weights(
     w_bgs = [class_weights[i]["w_bg"] for i in range(n_classes)]
     w_bws = [class_weights[i]["w_bw"] for i in range(n_classes)]
 
-    # Extract only the specified channel for TULCA
-    tensor_single_channel = tensor[:, :, :, tulca_channel:tulca_channel+1]
+    # Extract only the specified channel for TULCA as a 3D array
+    tensor_3d = tensor[:, :, :, tulca_channel]  # Shape: (games, time, space)
 
-    n_components = np.array([s_dim, v_dim, 1])  # c_dim is always 1
+    n_components = np.array([s_dim, v_dim])  # 2D: time and space only
 
     tulca = TULCA(
         n_components=n_components,
@@ -128,11 +128,11 @@ def recalc_tulca_with_weights(
     )
 
     # Initial fit
-    low_dim_tensor = tulca.fit_transform(tensor_single_channel, labels)
+    low_dim_tensor = tulca.fit_transform(tensor_3d, labels)
 
     # Apply weights and refit
     tulca.fit_with_new_weights(w_tgs, w_bgs, w_bws)
-    low_dim_tensor = tulca.transform(tensor_single_channel)
+    low_dim_tensor = tulca.transform(tensor_3d)
 
     proj_mats = tulca.get_projection_matrices()
 
@@ -200,9 +200,8 @@ def compute_contribution_tensor(
     proj_mats,
     S: int,
     V: int,
-    C: int,
     rf_params: dict,
-    normalize_zscore: bool = False,
+    normalize_zscore: bool = True,
 ) -> np.ndarray:
     """
     Compute contribution tensor by mapping RF feature importance back to original space.
@@ -211,29 +210,36 @@ def compute_contribution_tensor(
         cluster1_idx: Cluster 1 indices
         cluster2_idx: Cluster 2 indices
         scaled_data: Flattened TULCA output
-        proj_mats: TULCA projection matrices (time, space, channel)
+        proj_mats: TULCA projection matrices (time, space)
         S: Original time bins
         V: Original spatial cells
-        C: Original channels
         rf_params: RandomForest parameters
         normalize_zscore: If True, apply Z-score normalization (mean=0, std=1)
         
     Returns:
-        Contribution tensor (S, V, C)
+        Contribution tensor (S, V)
     """
     X, y = create_binary_classification_data(cluster1_idx, cluster2_idx, scaled_data)
     importance = compute_feature_importance(X, y, rf_params)
 
-    Mt, Mv, Mc = [np.asarray(m) for m in proj_mats]
+    Mt, Mv = [np.asarray(m) for m in proj_mats]
     
     # Get dimensions of low-dimensional space
-    s, v, c = Mt.shape[1], Mv.shape[1], Mc.shape[1]
+    s, v = Mt.shape[1], Mv.shape[1]
     
-    # Original implementation using Kronecker product
-    kron_mat = np.kron(np.kron(Mt, Mv), Mc)  # (S*V*C, s*v*c)
-    contrib_flat = kron_mat @ importance  # (S*V*C,)
-    contrib_tensor = contrib_flat.reshape(S, V, C)  # (S, V, C)
+    # --- Transpose matrix approach (memory efficient) ---
+    # Reshape importance vector to matrix form
+    importance_mat = importance.reshape(s, v)  # (s, v)
+    # Map back to original space using matrix multiplication
+    # Mt: (S, s), importance_mat: (s, v), Mv.T: (v, V) -> (S, V)
+    contrib_tensor = Mt @ importance_mat @ Mv.T  # (S, V)
     contrib_tensor = np.abs(contrib_tensor)
+    
+    # --- Original Kronecker product approach (commented out) ---
+    #　kron_mat = np.kron(Mt, Mv)  # (S*V, s*v)
+    # contrib_flat = kron_mat @ importance  # (S*V,)
+    # contrib_tensor = contrib_flat.reshape(S, V)  # (S, V)
+    # contrib_tensor = np.abs(contrib_tensor)
     
     # Optional Z-score normalization
     if normalize_zscore:
@@ -241,5 +247,4 @@ def compute_contribution_tensor(
         std = contrib_tensor.std()
         if std > 0:  # Avoid division by zero
             contrib_tensor = (contrib_tensor - mean) / std
-    
     return contrib_tensor

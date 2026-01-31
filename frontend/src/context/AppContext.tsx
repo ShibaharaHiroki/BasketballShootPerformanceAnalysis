@@ -16,10 +16,12 @@ interface AppContextType extends AppState {
     setMetadata: (metadata: any) => void;
     setCluster1: (indices: number[] | null) => void;
     setCluster2: (indices: number[] | null) => void;
-    setContribTensor: (tensor: number[][][] | null) => void;
+    setContribTensor: (tensor: number[][] | null) => void;
     setIsLoading: (loading: boolean) => void;
     setError: (error: string | null) => void;
     resetClusters: () => void;
+    currentLeague: 'nba' | 'bleague';
+    setCurrentLeague: (league: 'nba' | 'bleague') => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -35,9 +37,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const [metadata, setMetadata] = useState<any>({});
     const [cluster1, setCluster1] = useState<number[] | null>(null);
     const [cluster2, setCluster2] = useState<number[] | null>(null);
-    const [contribTensor, setContribTensor] = useState<number[][][] | null>(null);
+    const [contribTensor, setContribTensor] = useState<number[][] | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
+    const [currentLeague, setCurrentLeague] = useState<'nba' | 'bleague'>('nba');
 
     const resetClusters = () => {
         setCluster1(null);
@@ -73,6 +76,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setIsLoading,
         setError,
         resetClusters,
+        currentLeague,
+        setCurrentLeague,
     };
 
     return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

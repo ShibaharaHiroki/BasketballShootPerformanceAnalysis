@@ -13,4 +13,5 @@ echo.
 echo Starting React development server on http://localhost:3000
 echo.
 
+set NODE_OPTIONS=--max_old_space_size=8192
 call npm start

@@ -38,7 +38,7 @@ export interface AppState {
     metadata: TensorMetadata;
     cluster1: number[] | null;
     cluster2: number[] | null;
-    contribTensor: number[][][] | null;
+    contribTensor: number[][] | null;
     isLoading: boolean;
     error: string | null;
 }
@@ -61,7 +61,7 @@ export interface RecomputeTulcaResponse {
 }
 
 export interface AnalyzeClustersResponse {
-    contrib_tensor: number[][][];
+    contrib_tensor: number[][];
 }
 
 export interface AggregateClusterResponse {

@@ -18,7 +18,7 @@ class InitializeRequest(BaseModel):
     player_ids: List[int] = Field(default=[203999, 203507, 203954])
     seasons: List[int] = Field(default=[2022])
     s_dim: int = Field(default=4, ge=1)
-    v_dim: int = Field(default=160, ge=1)
+    v_dim: int = Field(default=150, ge=1)
     tulca_channel: int = Field(default=0, ge=0, le=4)  # 0=attempts, 1=makes, 2=points, 3=efg_weights, 4=misses
     league: str = Field(default="nba")  # "nba" or "bleague"
     analysis_mode: str = Field(default="player")  # "player" or "team_season"
@@ -60,6 +60,7 @@ class AnalyzeClustersRequest(BaseModel):
 class AnalyzeClustersResponse(BaseModel):
     """Response from cluster analysis."""
     contrib_tensor: List[List[float]]  # (S, V) - 2D since TULCA operates on single channel
+    dominance_tensor: List[List[float]]  # Difference in mean standardized values between Cluster 1 and 2
 
 
 class AggregateClusterRequest(BaseModel):

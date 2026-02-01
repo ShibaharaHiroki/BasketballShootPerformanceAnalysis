@@ -62,6 +62,7 @@ export interface RecomputeTulcaResponse {
 
 export interface AnalyzeClustersResponse {
     contrib_tensor: number[][];
+    dominance_tensor: number[][];
 }
 
 export interface AggregateClusterResponse {

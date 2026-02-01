@@ -143,6 +143,7 @@ async def initialize(request: InitializeRequest):
         # Store league in app_state for later use
         app_state["league"] = request.league
         app_state["time_bin_seconds"] = time_bin_seconds
+        app_state["tulca_channel"] = request.tulca_channel
         
         # Handle B.League
         if request.league == "bleague":
@@ -470,8 +471,32 @@ async def analyze_clusters(request: AnalyzeClustersRequest):
             normalize_zscore=False,  # Change to True to enable normalization
         )
 
+        # Calculate dominance (Cluster 1 - Cluster 2) using standardized tensor
+        tensor = app_state["tensor_standardized"]
+        tulca_channel = app_state.get("tulca_channel", 0)
+        
+        # Get indices
+        idx1 = np.array(request.cluster1_idx, dtype=int)
+        idx2 = np.array(request.cluster2_idx, dtype=int)
+        
+        # Calculate means for the specific channel
+        # tensor shape: (Games, Time, Space, Channels)
+        # We need to average over Games (axis 0)
+        if len(idx1) > 0:
+            mean_c1 = tensor[idx1, :, :, tulca_channel].mean(axis=0)
+        else:
+            mean_c1 = np.zeros((S_bins, V_cells))
+            
+        if len(idx2) > 0:
+            mean_c2 = tensor[idx2, :, :, tulca_channel].mean(axis=0)
+        else:
+            mean_c2 = np.zeros((S_bins, V_cells))
+            
+        dominance_tensor = mean_c1 - mean_c2
+
         return AnalyzeClustersResponse(
-            contrib_tensor=contrib_tensor.tolist()
+            contrib_tensor=contrib_tensor.tolist(),
+            dominance_tensor=dominance_tensor.tolist()
         )
 
     except Exception as e:

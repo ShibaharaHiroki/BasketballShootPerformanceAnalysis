@@ -68,7 +68,7 @@ def compute_embedding_and_projections(
     tensor: np.ndarray,
     labels: np.ndarray,
     s_dim: int = 4,
-    v_dim: int = 160,
+    v_dim: int = 150,
     tulca_channel: int = 0,
 ):
     """
@@ -268,9 +268,10 @@ def compute_contribution_tensor(
     # contrib_tensor = np.abs(contrib_tensor)
     
     # Optional Z-score normalization
-    if normalize_zscore:
-        mean = contrib_tensor.mean()
-        std = contrib_tensor.std()
-        if std > 0:  # Avoid division by zero
-            contrib_tensor = (contrib_tensor - mean) / std
+    # Optional Z-score normalization
+    # if normalize_zscore:
+    #     mean = contrib_tensor.mean()
+    #     std = contrib_tensor.std()
+    #     if std > 0:  # Avoid division by zero
+    #         contrib_tensor = (contrib_tensor - mean) / std
     return contrib_tensor

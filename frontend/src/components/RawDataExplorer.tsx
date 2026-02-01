@@ -310,11 +310,11 @@ function get3PTArcTrace() {
 function renderHeatmap(spatialData: number[], metadata: any, metric: 'attempts' | 'fg' | 'wfg') {
     const gridYBins = metadata.grid_y_bins || 16;
     const gridXBins = metadata.grid_x_bins || 17;
-    
+
     // 【修正点1】正規化のために総試投数を計算
     // metricが 'attempts' の場合のみ計算（FG%などの場合は正規化不要）
-    const totalAttempts = metric === 'attempts' 
-        ? spatialData.reduce((sum, val) => sum + val, 0) 
+    const totalAttempts = metric === 'attempts'
+        ? spatialData.reduce((sum, val) => sum + val, 0)
         : 1;
 
     const zRaw = [];     // 元の値（カウント数など）
@@ -337,7 +337,7 @@ function renderHeatmap(spatialData: number[], metadata: any, metric: 'attempts' 
 
     // ラベルの変更
     const label = metric === 'attempts' ? 'Frequency' : metric === 'fg' ? 'FG%' : 'EFG%';
-    
+
     // ツールチップとカラーバーの設定
     // Attemptsの場合はパーセント表示にする
     const hoverTemplate = metric === 'attempts'
@@ -352,35 +352,35 @@ function renderHeatmap(spatialData: number[], metadata: any, metric: 'attempts' 
         tickformat: metric === 'attempts' ? '.0%' : undefined, // 割合の場合は%表記
     };
 
-    const data: any[] = [{ 
-        x: metadata.x_edges, 
-        y: metadata.y_edges, 
+    const data: any[] = [{
+        x: metadata.x_edges,
+        y: metadata.y_edges,
         z: zDisplay,       // 正規化された値
         customdata: zRaw,  // 元の値（ホバー表示用）
-        type: 'heatmap', 
-        colorscale: 'Viridis', 
-        showscale: true, 
+        type: 'heatmap',
+        colorscale: 'Viridis',
+        showscale: true,
         colorbar: colorbarSettings,
         hovertemplate: hoverTemplate
     }];
 
     data.push(get3PTArcTrace() as any);
 
-    return <Plot 
-        data={data} 
-        layout={{ 
-            autosize: true, 
-            height: 280, 
-            margin: { l: 20, r: 40, t: 10, b: 20 }, 
-            paper_bgcolor: 'black', 
-            plot_bgcolor: 'black', 
-            xaxis: { range: [-250, 250], showgrid: false, zeroline: false, showticklabels: false }, 
-            yaxis: { range: [-47.5, 422.5], showgrid: false, zeroline: false, scaleanchor: 'x', scaleratio: 1.0, showticklabels: false }, 
-            shapes: getBasketballCourtShapes() 
-        } as any} 
-        config={{ displayModeBar: false }} 
-        style={{ width: '100%', height: '280px' }} 
-        useResizeHandler 
+    return <Plot
+        data={data}
+        layout={{
+            autosize: true,
+            height: 280,
+            margin: { l: 20, r: 40, t: 10, b: 20 },
+            paper_bgcolor: 'black',
+            plot_bgcolor: 'black',
+            xaxis: { range: [-250, 250], showgrid: false, zeroline: false, showticklabels: false },
+            yaxis: { range: [-47.5, 422.5], showgrid: false, zeroline: false, scaleanchor: 'x', scaleratio: 1.0, showticklabels: false },
+            shapes: getBasketballCourtShapes()
+        } as any}
+        config={{ displayModeBar: false }}
+        style={{ width: '100%', height: '280px' }}
+        useResizeHandler
     />;
 }
 
@@ -404,12 +404,12 @@ function renderShotTypesChart(stats: ShotTypeStats[], clusterColor: string) {
             <Table size="sm" variant="simple">
                 <Thead>
                     <Tr bg="gray.800">
-                        <Th color="white" fontSize="xs">Shot Type</Th>
-                        <Th color="white" fontSize="xs">Frequency Bar</Th>
-                        <Th color="white" fontSize="xs" isNumeric>Frequency</Th>
-                        <Th color="white" fontSize="xs" isNumeric>FG/FGA</Th>
-                        <Th color="white" fontSize="xs" isNumeric>FG%</Th>
-                        <Th color="white" fontSize="xs" isNumeric>EFG%</Th>
+                        <Th color="white" fontSize="10px" px={1}>Shot Type</Th>
+                        <Th color="white" fontSize="10px" px={1}>Frequency Bar</Th>
+                        <Th color="white" fontSize="10px" isNumeric px={1}>Frequency</Th>
+                        <Th color="white" fontSize="10px" isNumeric px={1}>FG/FGA</Th>
+                        <Th color="white" fontSize="10px" isNumeric px={1}>FG%</Th>
+                        <Th color="white" fontSize="10px" isNumeric px={1}>EFG%</Th>
                     </Tr>
                 </Thead>
                 <Tbody>
@@ -421,23 +421,23 @@ function renderShotTypesChart(stats: ShotTypeStats[], clusterColor: string) {
 
                         return (
                             <Tr key={idx} _hover={{ bg: 'gray.800' }}>
-                                <Td color="white" fontSize="xs">{stat.category}</Td>
-                                <Td>
+                                <Td color="white" fontSize="10px" px={1}>{stat.category}</Td>
+                                <Td px={1}>
                                     <Box
                                         bg={clusterColor}
-                                        height="16px"
+                                        height="12px"
                                         width={barWidth}
                                         borderRadius="sm"
                                     />
                                 </Td>
-                                <Td color="white" fontSize="xs" isNumeric>{freqPct.toFixed(1)}%</Td>
-                                <Td color="gray.300" fontSize="xs" isNumeric fontWeight="semibold">
+                                <Td color="white" fontSize="10px" isNumeric px={1}>{freqPct.toFixed(1)}%</Td>
+                                <Td color="gray.300" fontSize="10px" isNumeric fontWeight="semibold" px={1}>
                                     {stat.makes}/{stat.attempts}
                                 </Td>
-                                <Td color="white" fontSize="xs" isNumeric fontWeight="semibold">
+                                <Td color="white" fontSize="10px" isNumeric fontWeight="semibold" px={1}>
                                     {fgPct.toFixed(1)}%
                                 </Td>
-                                <Td color="gray.400" fontSize="xs" isNumeric>
+                                <Td color="gray.400" fontSize="10px" isNumeric px={1}>
                                     {efgPct.toFixed(1)}%
                                 </Td>
                             </Tr>
@@ -462,12 +462,12 @@ function renderTimeProfile(data: { attempts: number[], fg: number[], wfg: number
             <Table size="sm" variant="simple">
                 <Thead>
                     <Tr bg="gray.800">
-                        <Th color="white" fontSize="xs">Quarter</Th>
-                        <Th color="white" fontSize="xs">Frequency Bar</Th>
-                        <Th color="white" fontSize="xs" isNumeric>Frequency</Th>
-                        <Th color="white" fontSize="xs" isNumeric>FG/FGA</Th>
-                        <Th color="white" fontSize="xs" isNumeric>FG%</Th>
-                        <Th color="white" fontSize="xs" isNumeric>EFG%</Th>
+                        <Th color="white" fontSize="10px" px={1}>Quarter</Th>
+                        <Th color="white" fontSize="10px" px={1}>Frequency Bar</Th>
+                        <Th color="white" fontSize="10px" isNumeric px={1}>Frequency</Th>
+                        <Th color="white" fontSize="10px" isNumeric px={1}>FG/FGA</Th>
+                        <Th color="white" fontSize="10px" isNumeric px={1}>FG%</Th>
+                        <Th color="white" fontSize="10px" isNumeric px={1}>EFG%</Th>
                     </Tr>
                 </Thead>
                 <Tbody>
@@ -480,23 +480,23 @@ function renderTimeProfile(data: { attempts: number[], fg: number[], wfg: number
 
                         return (
                             <Tr key={idx} _hover={{ bg: 'gray.800' }}>
-                                <Td color="white" fontSize="xs">{quarter}</Td>
-                                <Td>
+                                <Td color="white" fontSize="10px" px={1}>{quarter}</Td>
+                                <Td px={1}>
                                     <Box
                                         bg={clusterColor}
-                                        height="16px"
+                                        height="12px"
                                         width={barWidth}
                                         borderRadius="sm"
                                     />
                                 </Td>
-                                <Td color="white" fontSize="xs" isNumeric>{freqPct.toFixed(1)}%</Td>
-                                <Td color="gray.300" fontSize="xs" isNumeric fontWeight="semibold">
+                                <Td color="white" fontSize="10px" isNumeric px={1}>{freqPct.toFixed(1)}%</Td>
+                                <Td color="gray.300" fontSize="10px" isNumeric fontWeight="semibold" px={1}>
                                     {Math.round(attempts * fgPct / 100)}/{attempts.toFixed(0)}
                                 </Td>
-                                <Td color="white" fontSize="xs" isNumeric fontWeight="semibold">
+                                <Td color="white" fontSize="10px" isNumeric fontWeight="semibold" px={1}>
                                     {fgPct.toFixed(1)}%
                                 </Td>
-                                <Td color="gray.400" fontSize="xs" isNumeric>
+                                <Td color="gray.400" fontSize="10px" isNumeric px={1}>
                                     {efgPct.toFixed(1)}%
                                 </Td>
                             </Tr>

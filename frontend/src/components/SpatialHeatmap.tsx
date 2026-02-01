@@ -142,18 +142,44 @@ const SpatialHeatmap: React.FC = () => {
             }
         }
 
-        // Calculate grid cell diagonal for maximum marker size
-        const cellDiagonal = Math.sqrt(cellW * cellW + cellH * cellH);
+        // --- 【修正】特徴量重要度に基づく相対的スケーリング ---
 
-        // Use absolute scale for marker size (not normalized to current selection)
-        // This allows consistent comparison across different time/space selections
-        const FIXED_MAX_IMPORTANCE = 2.5; // Adjusted for individual time bins/channels (not aggregated 'All')
-        const sizes = vals.map((v) => Math.min(v / FIXED_MAX_IMPORTANCE, 1.0) * cellDiagonal * 24);
+        // 1. 特徴量重要度の最大値を取得
+        // 画面の表示範囲（ズーム等）には依存せず、
+        // 計算された「特徴量重要度」データ全体の中での最大値を基準とします。
+        let maxImportance = 0;
+        if (vals.length > 0) {
+            maxImportance = Math.max(...vals);
+        }
 
-        // Color based on dominance
-        // Red for Cluster 1 (dominance > 0), Blue for Cluster 2 (dominance < 0)
-        // Use consistent colors with ScatterPlot
-        const colors = domVals.map(d => d > 0 ? COLOR_C1 : COLOR_C2);
+        // 全て0の場合やエラー回避のためのガード
+        if (maxImportance === 0) maxImportance = 1.0;
+
+        // 2. 図形サイズの計算
+        // 論文記述: "表示されている特徴量の中で最も重要度が高い要素の円のサイズを...動的に固定する"
+        // 論文記述: "その他の領域については...比率に応じて線形に図形サイズを調整する"
+        const MAX_CIRCLE_DIAMETER = 28; // Max circle diameter in pixels (approximate cell diagonal)
+        const sizes = vals.map((v) => {
+            // 最大値に対する比率 (0.0 ～ 1.0)
+            const ratio = v / maxImportance;
+
+            // 比率に基づいてサイズを決定
+            // MAX_CIRCLE_DIAMETER は定数定義されている前提 (例: 28)
+            return ratio * MAX_CIRCLE_DIAMETER;
+        });
+
+        // 3. Color mapping: Dominance > 0 ? Red : Blue, Near 0 ? Gray
+        const COLOR_NEUTRAL = 'rgba(200, 200, 200, 0.7)'; // Neutral Gray
+        const DOMINANCE_THRESHOLD = 0.0001; // Threshold for zero
+
+        const colors = domVals.map(d => {
+            // Check for neutral (near zero)
+            if (Math.abs(d) < DOMINANCE_THRESHOLD) {
+                return COLOR_NEUTRAL;
+            }
+            // Positive -> Cluster 1 (Red), Negative -> Cluster 2 (Blue)
+            return d > 0 ? COLOR_C1 : COLOR_C2;
+        });
 
         const traces: any[] = [
             // Court marker
@@ -165,10 +191,18 @@ const SpatialHeatmap: React.FC = () => {
                 marker: {
                     size: sizes,
                     color: colors,
-                    line: { color: 'white', width: 0.5 }, // White border for visibility
+                    opacity: 0.8,
+                    line: { color: 'white', width: 1 }, // White border
+                    sizemode: 'diameter',
                 },
-                customdata: vals.map((v, i) => [v, domVals[i]]),
-                hovertemplate: 'x=%{x:.1f}, y=%{y:.1f}<br>importance=%{customdata[0]:.3f}<br>dominance=%{customdata[1]:.3f}<extra></extra>',
+                text: vals.map((v, i) => {
+                    let clusterName = 'Neutral';
+                    if (domVals[i] > DOMINANCE_THRESHOLD) clusterName = 'Cluster 1';
+                    else if (domVals[i] < -DOMINANCE_THRESHOLD) clusterName = 'Cluster 2';
+
+                    return `Importance: ${v.toFixed(4)}<br>Dominant: ${clusterName}<br>Val: ${domVals[i].toFixed(4)}`;
+                }),
+                hoverinfo: 'text',
                 showlegend: false,
             },
         ];

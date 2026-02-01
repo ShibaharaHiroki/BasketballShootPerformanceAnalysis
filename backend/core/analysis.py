@@ -26,21 +26,37 @@ def unfold_and_scale(low_dim_tensor: np.ndarray) -> np.ndarray:
 
 def standardize_tensor_for_tulca(tensor: np.ndarray) -> np.ndarray:
     """
-    Standardize the original shot tensor before feeding into TULCA.
-    Each channel is standardized independently.
+    Apply Two-Step Normalization:
+    1. Volume Normalization (Total Count Normalization): Divide by total attempts per game.
+    2. Z-score Standardization: Standardize each grid/channel independently.
     
     Args:
         tensor: Input tensor (T, S, V, C)  - games × time × space × channels
         
     Returns:
-        Standardized tensor with same shape
+        Normalized and Standardized tensor with same shape
     """
     T_, S_, V_, C_ = tensor.shape
-    result = np.zeros_like(tensor)
+    
+    # --- Step 1: Volume Normalization ---
+    # Channel 0 is Attempts.
+    total_attempts = tensor[:, :, :, 0].sum(axis=(1, 2)) # Shape (T,)
+    
+    # Avoid division by zero
+    total_attempts[total_attempts == 0] = 1.0
+    
+    # Reshape for broadcasting: (T, 1, 1, 1)
+    total_attempts_expanded = total_attempts[:, np.newaxis, np.newaxis, np.newaxis]
+    
+    # Normalized tensor (Volume Normalized)
+    tensor_norm = tensor / total_attempts_expanded
+    
+    # --- Step 2: Z-score Standardization ---
+    result = np.zeros_like(tensor_norm)
     
     # Standardize each channel independently
     for c in range(C_):
-        channel_data = tensor[:, :, :, c].reshape(T_, -1)  # (T, S*V)
+        channel_data = tensor_norm[:, :, :, c].reshape(T_, -1)  # (T, S*V)
         scaler = StandardScaler()
         channel_scaled = scaler.fit_transform(channel_data)
         result[:, :, :, c] = channel_scaled.reshape(T_, S_, V_)
@@ -77,6 +93,16 @@ def compute_embedding_and_projections(
     )
 
     low_dim_tensor = tulca.fit_transform(tensor_3d, labels)
+
+    # ★追加: 再計算時と同じ挙動にするため、デフォルト重みで再fitする
+    n_classes = len(np.unique(labels))
+    w_tgs = [0.0] * n_classes
+    w_bgs = [1.0] * n_classes
+    w_bws = [1.0] * n_classes
+    
+    tulca.fit_with_new_weights(w_tgs, w_bgs, w_bws)
+    low_dim_tensor = tulca.transform(tensor_3d)  # 結果を更新
+
     proj_mats = tulca.get_projection_matrices()
 
     scaled_data = unfold_and_scale(low_dim_tensor)

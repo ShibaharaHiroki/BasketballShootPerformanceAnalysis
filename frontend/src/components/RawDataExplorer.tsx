@@ -21,7 +21,13 @@ import {
     Tr,
     Th,
     Td,
+    Menu,
+    MenuButton,
+    MenuList,
+    MenuItem,
+    Button,
 } from '@chakra-ui/react';
+import { ChevronDownIcon } from '@chakra-ui/icons';
 import Plot from 'react-plotly.js';
 import { useAppContext } from '../context/AppContext';
 import { ShotData, ShotTypeStats } from '../types';
@@ -307,56 +313,64 @@ function get3PTArcTrace() {
 
 // frontend/src/components/RawDataExplorer.tsx
 
-function renderHeatmap(spatialData: number[], metadata: any, metric: 'attempts' | 'fg' | 'wfg') {
+// Update renderHeatmap signature
+function renderHeatmap(spatialData: number[], metadata: any, metric: 'attempts' | 'attempts_log' | 'fg' | 'wfg') {
     const gridYBins = metadata.grid_y_bins || 16;
     const gridXBins = metadata.grid_x_bins || 17;
 
-    // 【修正点1】正規化のために総試投数を計算
-    // metricが 'attempts' の場合のみ計算（FG%などの場合は正規化不要）
-    const totalAttempts = metric === 'attempts'
+    // Calculate total for normal frequency
+    const totalAttempts = (metric === 'attempts' || metric === 'attempts_log')
         ? spatialData.reduce((sum, val) => sum + val, 0)
         : 1;
 
-    const zRaw = [];     // 元の値（カウント数など）
-    const zDisplay = []; // 表示用の値（割合または確率）
+    // Calculate max value for log scaling
+    const maxVal = Math.max(...spatialData);
+
+    const zRaw = [];     // Raw values
+    const zDisplay = []; // Display values
 
     for (let i = 0; i < gridYBins; i++) {
         const rawRow = spatialData.slice(i * gridXBins, (i + 1) * gridXBins);
         zRaw.push(rawRow);
 
         if (metric === 'attempts') {
-            // 【修正点2】各セルの値を総試投数で割り、割合（0.0 ~ 1.0）に変換
-            // ゼロ除算を防ぐため、totalAttemptsが0の場合は1で割る
             const divisor = totalAttempts > 0 ? totalAttempts : 1;
             zDisplay.push(rawRow.map(val => val / divisor));
+        } else if (metric === 'attempts_log') {
+            const logMax = Math.log1p(maxVal);
+            zDisplay.push(rawRow.map(val => {
+                if (logMax === 0) return 0;
+                return Math.log1p(val) / logMax;
+            }));
         } else {
-            // FG%などはそのまま使用
             zDisplay.push(rawRow);
         }
     }
 
-    // ラベルの変更
-    const label = metric === 'attempts' ? 'Frequency' : metric === 'fg' ? 'FG%' : 'EFG%';
+    const label = metric === 'attempts' ? 'Frequency' : metric === 'attempts_log' ? 'Frequency (Log)' : metric === 'fg' ? 'FG%' : 'EFG%';
 
-    // ツールチップとカラーバーの設定
-    // Attemptsの場合はパーセント表示にする
-    const hoverTemplate = metric === 'attempts'
-        ? '<b>Freq</b>: %{z:.1%}<br><b>Count</b>: %{customdata} / ' + totalAttempts + '<br>x=%{x:.1f}, y=%{y:.1f}<extra></extra>'
-        : '<b>%{z:.1f}%</b><br>x=%{x:.1f}, y=%{y:.1f}<extra></extra>';
+    // Custom hover template
+    let hoverTemplate = '<b>%{z:.1f}%</b><br>x=%{x:.1f}, y=%{y:.1f}<extra></extra>';
+    if (metric === 'attempts') {
+        hoverTemplate = '<b>Freq</b>: %{z:.1%}<br><b>Count</b>: %{customdata} / ' + totalAttempts + '<br>x=%{x:.1f}, y=%{y:.1f}<extra></extra>';
+    } else if (metric === 'attempts_log') {
+        // Show Count only, hide normalized z-score to avoid confusion
+        hoverTemplate = '<b>Count</b>: %{customdata}<br>(Log Scale)<br>x=%{x:.1f}, y=%{y:.1f}<extra></extra>';
+    }
 
     const colorbarSettings = {
         title: label,
         len: 0.7,
         tickfont: { color: 'white' },
         titlefont: { color: 'white' },
-        tickformat: metric === 'attempts' ? '.0%' : undefined, // 割合の場合は%表記
+        tickformat: metric === 'attempts' ? '.0%' : undefined,
     };
 
     const data: any[] = [{
         x: metadata.x_edges,
         y: metadata.y_edges,
-        z: zDisplay,       // 正規化された値
-        customdata: zRaw,  // 元の値（ホバー表示用）
+        z: zDisplay,
+        customdata: zRaw,
         type: 'heatmap',
         colorscale: 'Viridis',
         showscale: true,
@@ -517,7 +531,7 @@ interface ClusterPanelProps {
 
 const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndices, metadata }) => {
     const [spatialMode, setSpatialMode] = useState<'heatmap' | 'shotmap'>('heatmap');
-    const [metric, setMetric] = useState<'attempts' | 'fg' | 'wfg'>('attempts');
+    const [metric, setMetric] = useState<'attempts' | 'attempts_log' | 'fg' | 'wfg'>('attempts');
     const [isLoading, setIsLoading] = useState(false);
     const [spatialData, setSpatialData] = useState<number[]>([]);
     const [shotData, setShotData] = useState<ShotData[]>([]);
@@ -534,7 +548,8 @@ const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndic
     useEffect(() => {
         if (!clusterIndices || clusterIndices.length === 0) { setSpatialData([]); return; }
         setIsLoading(true);
-        const channel = metric === 'attempts' ? 0 : metric === 'fg' ? 1 : 2;
+        // Map attempts_log to channel 0 (attempts)
+        const channel = (metric === 'attempts' || metric === 'attempts_log') ? 0 : metric === 'fg' ? 1 : 2;
         const weighted = metric === 'wfg';  // Only wfg should use weighted calculation
         fetch('http://localhost:8000/api/aggregate-cluster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, channel, weighted, time_bin: timeBinValue }) })
             .then(res => res.json()).then(data => { setSpatialData(data.values || []); setIsLoading(false); }).catch(err => { console.error('Failed to fetch spatial data:', err); setIsLoading(false); });
@@ -603,69 +618,94 @@ const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndic
             {/* Quarter Selection */}
             <Box mb={2}>
                 <HStack spacing={2}>
-                    <Text fontSize="xs" fontWeight="bold" color="white">Quarter:</Text>
-                    <RadioGroup size="sm" value={selectedQuarter} onChange={(val) => setSelectedQuarter(val as 'all' | '0' | '1' | '2' | '3')}>
-                        <Stack direction="row" fontSize="xs" spacing={2}>
-                            <Radio value="all" colorScheme={clusterNumber === '1' ? 'red' : 'blue'}>
-                                <Text color="white">All</Text>
-                            </Radio>
-                            <Radio value="0" colorScheme={clusterNumber === '1' ? 'red' : 'blue'}>
-                                <Text color="white">1Q</Text>
-                            </Radio>
-                            <Radio value="1" colorScheme={clusterNumber === '1' ? 'red' : 'blue'}>
-                                <Text color="white">2Q</Text>
-                            </Radio>
-                            <Radio value="2" colorScheme={clusterNumber === '1' ? 'red' : 'blue'}>
-                                <Text color="white">3Q</Text>
-                            </Radio>
-                            <Radio value="3" colorScheme={clusterNumber === '1' ? 'red' : 'blue'}>
-                                <Text color="white">4Q</Text>
-                            </Radio>
-                        </Stack>
-                    </RadioGroup>
+                    <Text fontSize="xs" fontWeight="bold" color="white">Time:</Text>
+                    <Menu>
+                        <MenuButton
+                            as={Button}
+                            size="xs"
+                            rightIcon={<ChevronDownIcon />}
+                            bg="gray.800"
+                            color="white"
+                            _hover={{ bg: 'gray.700' }}
+                            _active={{ bg: 'gray.600' }}
+                        >
+                            {selectedQuarter === 'all' ? 'All' :
+                                selectedQuarter === '0' ? '1Q' :
+                                    selectedQuarter === '1' ? '2Q' :
+                                        selectedQuarter === '2' ? '3Q' : '4Q'}
+                        </MenuButton>
+                        <MenuList bg="gray.800" borderColor="gray.600">
+                            {[
+                                { value: 'all', label: 'All' },
+                                { value: '0', label: '1Q' },
+                                { value: '1', label: '2Q' },
+                                { value: '2', label: '3Q' },
+                                { value: '3', label: '4Q' }
+                            ].map((opt) => (
+                                <MenuItem
+                                    key={opt.value}
+                                    bg="gray.800"
+                                    color="white"
+                                    _hover={{ bg: 'gray.700' }}
+                                    onClick={() => setSelectedQuarter(opt.value as any)}
+                                >
+                                    {opt.label}
+                                </MenuItem>
+                            ))}
+                        </MenuList>
+                    </Menu>
                 </HStack>
             </Box>
 
             {/* Spatial Visualization */}
             <Box>
-                <HStack spacing={2} mb={2}>
+                {/* <HStack spacing={2} mb={2}>
                     <Text fontSize="xs" fontWeight="bold" color="white">Spatial:</Text>
                     <RadioGroup size="sm" value={spatialMode} onChange={(val) => setSpatialMode(val as 'heatmap' | 'shotmap')}>
                         <Stack direction="row" fontSize="xs" spacing={3}>
                             <Radio value="heatmap" colorScheme={clusterNumber === '1' ? 'red' : 'blue'}>
                                 <Text color="white">Heatmap</Text>
                             </Radio>
-                            <Radio value="shotmap" colorScheme={clusterNumber === '1' ? 'red' : 'blue'}>
+                            {/* <Radio value="shotmap" colorScheme={clusterNumber === '1' ? 'red' : 'blue'}>
                                 <Text color="white">Shot Map</Text>
-                            </Radio>
+                            </Radio> 
                         </Stack>
                     </RadioGroup>
-                </HStack>
+                </HStack> */}
                 <Box h="280px" borderRadius="md" bg="black" display="flex" alignItems="center" justifyContent="center">
                     {!hasData ? null : isLoading ? (
                         <Spinner color={clusterColor} />
                     ) : spatialMode === 'heatmap' && spatialData.length > 0 && metadata ? (
                         renderHeatmap(spatialData, metadata, metric)
-                    ) : spatialMode === 'shotmap' && shotData.length > 0 ? (
+                    ) : /* spatialMode === 'shotmap' && shotData.length > 0 ? (
                         renderShotMap(shotData)
-                    ) : (
-                        <Text fontSize="sm" color="white">Loading...</Text>
-                    )}
+                    ) : */ (
+                            <Text fontSize="sm" color="white">Loading...</Text>
+                        )}
                 </Box>
                 {spatialMode === 'heatmap' && hasData && (
-                    <RadioGroup size="sm" value={metric} onChange={(val) => setMetric(val as any)} mt={2}>
-                        <Stack direction="row" fontSize="xs" spacing={3}>
-                            <Radio value="attempts" colorScheme={clusterNumber === '1' ? 'red' : 'blue'}>
-                                <Text color="white">Attempts</Text>
-                            </Radio>
-                            <Radio value="fg" colorScheme={clusterNumber === '1' ? 'red' : 'blue'}>
-                                <Text color="white">FG%</Text>
-                            </Radio>
-                            <Radio value="wfg" colorScheme={clusterNumber === '1' ? 'red' : 'blue'}>
-                                <Text color="white">EFG%</Text>
-                            </Radio>
-                        </Stack>
-                    </RadioGroup>
+                    <HStack spacing={2} mt={2}>
+                        <Text fontSize="xs" fontWeight="bold" color="white">Metric:</Text>
+                        <Menu>
+                            <MenuButton
+                                as={Button}
+                                size="xs"
+                                rightIcon={<ChevronDownIcon />}
+                                bg="gray.800"
+                                color="white"
+                                _hover={{ bg: 'gray.700' }}
+                                _active={{ bg: 'gray.600' }}
+                            >
+                                {metric === 'attempts' ? 'Frequency' : metric === 'attempts_log' ? 'Frequency (Log)' : metric === 'fg' ? 'FG%' : 'EFG%'}
+                            </MenuButton>
+                            <MenuList bg="gray.800" borderColor="gray.600">
+                                <MenuItem bg="gray.800" color="white" _hover={{ bg: 'gray.700' }} onClick={() => setMetric('attempts')}>Frequency</MenuItem>
+                                <MenuItem bg="gray.800" color="white" _hover={{ bg: 'gray.700' }} onClick={() => setMetric('attempts_log')}>Frequency (Log)</MenuItem>
+                                <MenuItem bg="gray.800" color="white" _hover={{ bg: 'gray.700' }} onClick={() => setMetric('fg')}>FG%</MenuItem>
+                                <MenuItem bg="gray.800" color="white" _hover={{ bg: 'gray.700' }} onClick={() => setMetric('wfg')}>EFG%</MenuItem>
+                            </MenuList>
+                        </Menu>
+                    </HStack>
                 )}
             </Box>
 
@@ -673,7 +713,7 @@ const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndic
 
             {/* Shot Types */}
             <Box>
-                <Text fontSize="xs" fontWeight="bold" color="white" mb={2}>Shot Types</Text>
+                <Text fontSize="xs" fontWeight="bold" color="white" mb={2}>Shot map by category</Text>
                 <Box borderRadius="md" bg="black" display="flex" alignItems="center" justifyContent="center">
                     {!hasData ? null : shotTypeStats.length > 0 ? (
                         renderShotTypesChart(shotTypeStats, clusterColor)
@@ -687,7 +727,7 @@ const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndic
 
             {/* Time Profile */}
             <Box>
-                <Text fontSize="xs" fontWeight="bold" color="white" mb={2}>Time</Text>
+                <Text fontSize="xs" fontWeight="bold" color="white" mb={2}>Shot map by game time</Text>
                 <Box borderRadius="md" bg="black" display="flex" alignItems="center" justifyContent="center">
                     {!hasData ? null : timeProfileData.attempts.length > 0 ? (
                         renderTimeProfile(timeProfileData, clusterColor)

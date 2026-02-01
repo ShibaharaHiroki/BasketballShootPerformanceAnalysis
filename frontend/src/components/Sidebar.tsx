@@ -308,7 +308,8 @@ const Sidebar: React.FC = () => {
             <VStack spacing={4} align="stretch">
 
                 {/* Metric Selection - Always visible */}
-                <Box>
+                {/* Metric Selection - Always visible */}
+                {/* <Box>
                     <Text fontWeight="bold" fontSize="sm" mb={2} color="white">
                         Metric
                     </Text>
@@ -335,7 +336,7 @@ const Sidebar: React.FC = () => {
                             <MenuItem bg="gray.800" color="white" _hover={{ bg: 'gray.700' }} onClick={() => setTulcaChannel(4)}>Misses</MenuItem>
                         </MenuList>
                     </Menu>
-                </Box>
+                </Box> */}
 
                 <Divider borderColor="gray.700" />
 

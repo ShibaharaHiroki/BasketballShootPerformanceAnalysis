@@ -13,8 +13,13 @@ const SpatialHeatmap: React.FC = () => {
     const { cluster1, cluster2, metadata, tensorShape } = useAppContext();
     const toast = useToast();
 
+    // Constant colors for clusters
+    const COLOR_C1 = 'rgba(231, 76, 60, 0.7)'; // Red
+    const COLOR_C2 = 'rgba(52, 152, 219, 0.7)'; // Blue
+
     const [timeBin, setTimeBin] = useState<string>('0');
     const [contribData, setContribData] = useState<number[][] | null>(null);
+    const [domData, setDomData] = useState<number[][] | null>(null);
     const [plotData, setPlotData] = useState<any[]>([]);
 
     const S_bins = tensorShape.length > 0 ? tensorShape[1] : 4;
@@ -30,6 +35,7 @@ const SpatialHeatmap: React.FC = () => {
             if (!cluster1 || !cluster2 || cluster1.length === 0 || cluster2.length === 0) {
                 console.log('SpatialHeatmap: clusters not ready');
                 setContribData(null);
+                setDomData(null);
                 return;
             }
 
@@ -38,6 +44,7 @@ const SpatialHeatmap: React.FC = () => {
                 const response = await apiClient.analyzeClusters(cluster1, cluster2);
                 console.log('SpatialHeatmap: got contribution tensor', response.contrib_tensor);
                 setContribData(response.contrib_tensor);
+                setDomData(response.dominance_tensor);
             } catch (err: any) {
                 console.error('SpatialHeatmap: error fetching contribution', err);
                 toast({
@@ -99,26 +106,39 @@ const SpatialHeatmap: React.FC = () => {
         const xs: number[] = [];
         const ys: number[] = [];
         const vals: number[] = [];
+        const domVals: number[] = [];
 
         // Aggregate contribution based on time bin selection
         // contrib_tensor is now 2D: (time_bins, spatial_cells)
         for (let iy = 0; iy < gridYBins; iy++) {
             for (let ix = 0; ix < gridXBins; ix++) {
                 const cellIdx = iy * gridXBins + ix;
-                xs.push(xEdges[ix] + cellW / 2);
-                ys.push(yEdges[iy] + cellH / 2);
 
                 let val = 0;
+                let dom = 0;
+
                 if (timeBin === 'all') {
                     // Sum across all time bins
                     for (let t = 0; t < S_bins; t++) {
                         val += contribData[t][cellIdx];
+                        if (domData) {
+                            dom += domData[t][cellIdx]; // Summing difference (valid for mean diff)
+                        }
                     }
                 } else {
                     const t = parseInt(timeBin);
                     val = contribData[t][cellIdx];
+                    if (domData) {
+                        dom = domData[t][cellIdx];
+                    }
                 }
+
+                // Only push points if they have non-zero importance or just to keep grid aligned?
+                // The original code pushed everything.
+                xs.push(xEdges[ix] + cellW / 2);
+                ys.push(yEdges[iy] + cellH / 2);
                 vals.push(val);
+                domVals.push(dom);
             }
         }
 
@@ -130,6 +150,11 @@ const SpatialHeatmap: React.FC = () => {
         const FIXED_MAX_IMPORTANCE = 2.5; // Adjusted for individual time bins/channels (not aggregated 'All')
         const sizes = vals.map((v) => Math.min(v / FIXED_MAX_IMPORTANCE, 1.0) * cellDiagonal * 24);
 
+        // Color based on dominance
+        // Red for Cluster 1 (dominance > 0), Blue for Cluster 2 (dominance < 0)
+        // Use consistent colors with ScatterPlot
+        const colors = domVals.map(d => d > 0 ? COLOR_C1 : COLOR_C2);
+
         const traces: any[] = [
             // Court marker
             {
@@ -139,11 +164,11 @@ const SpatialHeatmap: React.FC = () => {
                 type: 'scatter',
                 marker: {
                     size: sizes,
-                    color: 'rgba(192, 57, 43, 0.3)',
-                    line: { color: 'rgba(192, 57, 43, 0.8)', width: 1 },
+                    color: colors,
+                    line: { color: 'white', width: 0.5 }, // White border for visibility
                 },
-                customdata: vals,
-                hovertemplate: 'x=%{x:.1f}, y=%{y:.1f}<br>importance=%{customdata:.3f}<extra></extra>',
+                customdata: vals.map((v, i) => [v, domVals[i]]),
+                hovertemplate: 'x=%{x:.1f}, y=%{y:.1f}<br>importance=%{customdata[0]:.3f}<br>dominance=%{customdata[1]:.3f}<extra></extra>',
                 showlegend: false,
             },
         ];
@@ -180,7 +205,7 @@ const SpatialHeatmap: React.FC = () => {
         });
 
         setPlotData(traces);
-    }, [contribData, timeBin, metadata, gridXBins, gridYBins, S_bins]);
+    }, [contribData, domData, timeBin, metadata, gridXBins, gridYBins, S_bins]);
 
     // NBA half-court visualization - Based on official NBA dimensions
     // Coordinate system: X from -250 to 250 (50 feet wide), Y from -47.5 to 422.5 (47 feet deep)
@@ -589,6 +614,7 @@ const SpatialHeatmap: React.FC = () => {
                             ))}
                         </MenuList>
                     </Menu>
+
 
                 </HStack>
 

@@ -27,19 +27,25 @@ def unfold_and_scale(low_dim_tensor: np.ndarray) -> np.ndarray:
 def standardize_tensor_for_tulca(tensor: np.ndarray) -> np.ndarray:
     """
     Apply Two-Step Normalization:
-    1. Volume Normalization (Total Count Normalization): Divide by total attempts per game.
+    1. Volume Normalization: Divide by total attempts (ONLY for Channel 5: Frequency).
     2. Z-score Standardization: Standardize each grid/channel independently.
     
     Args:
-        tensor: Input tensor (T, S, V, C)  - games × time × space × channels
+        tensor: Input tensor (T, S, V, C) 
+                Channel 0: Attempts (Raw)
+                Channel 1: Makes (Raw)
+                Channel 2: Points (Raw)
+                Channel 3: EFG Weights
+                Channel 4: Misses (Raw)
+                Channel 5: Frequency (Source is Attempts, needs normalization)
         
     Returns:
-        Normalized and Standardized tensor with same shape
+        Normalized and Standardized tensor
     """
     T_, S_, V_, C_ = tensor.shape
     
     # --- Step 1: Volume Normalization ---
-    # Channel 0 is Attempts.
+    # Channel 0 is Attempts (Raw).
     total_attempts = tensor[:, :, :, 0].sum(axis=(1, 2)) # Shape (T,)
     
     # Avoid division by zero
@@ -48,15 +54,21 @@ def standardize_tensor_for_tulca(tensor: np.ndarray) -> np.ndarray:
     # Reshape for broadcasting: (T, 1, 1, 1)
     total_attempts_expanded = total_attempts[:, np.newaxis, np.newaxis, np.newaxis]
     
-    # Normalized tensor (Volume Normalized)
-    tensor_norm = tensor / total_attempts_expanded
+    # Create a copy
+    tensor_norm = tensor.copy()
+
+    # ★変更点: Channel 5 (Frequency) のみにボリューム正規化を適用
+    # Channel 0 (Attempts) など他のチャンネルは生のカウント値のまま維持
+    if C_ > 5:
+        tensor_norm[:, :, :, 5:6] = tensor[:, :, :, 5:6] / total_attempts_expanded
     
     # --- Step 2: Z-score Standardization ---
     result = np.zeros_like(tensor_norm)
     
     # Standardize each channel independently
+    # Channel 5 は正規化済みの値(Frequency)、他は生の値に対して標準化が行われる
     for c in range(C_):
-        channel_data = tensor_norm[:, :, :, c].reshape(T_, -1)  # (T, S*V)
+        channel_data = tensor_norm[:, :, :, c].reshape(T_, -1)
         scaler = StandardScaler()
         channel_scaled = scaler.fit_transform(channel_data)
         result[:, :, :, c] = channel_scaled.reshape(T_, S_, V_)

@@ -303,19 +303,23 @@ def make_bleague_tensor(
                 data_4d[g_idx, t, y, x, 3] += efg_weight
     
     # Add channel 4: Misses (Attempts - Makes)
-    data_5ch = np.zeros(
-        (len(game_ids), num_time_bins, grid_y_bins, grid_x_bins, 5),
+    # ★変更: チャンネル数を 5 から 6 に変更
+    data_6ch = np.zeros(
+        (len(game_ids), num_time_bins, grid_y_bins, grid_x_bins, 6),
         dtype=np.float32,
     )
-    data_5ch[:, :, :, :, :4] = data_4d
-    data_5ch[:, :, :, :, 4] = data_4d[:, :, :, :, 0] - data_4d[:, :, :, :, 1]
+    data_6ch[:, :, :, :, :4] = data_4d
+    data_6ch[:, :, :, :, 4] = data_4d[:, :, :, :, 0] - data_4d[:, :, :, :, 1]
     
-    # Reshape: (games, time, y, x, 5) → (games, time, y*x, 5)
-    tensor = data_5ch.reshape(
+    # ★追加: Channel 5: Frequency (初期値としてAttemptsをコピー。後で正規化してFrequencyにする)
+    data_6ch[:, :, :, :, 5] = data_4d[:, :, :, :, 0]
+    
+    # Reshape
+    tensor = data_6ch.reshape(
         len(game_ids),
         num_time_bins,
         grid_y_bins * grid_x_bins,
-        5,
+        6,  # 5 -> 6
     )
     
     meta = {
@@ -494,19 +498,23 @@ def make_bleague_team_tensor(
                 data_4d[g_idx, t, y, x, 3] += 1.5 if is_3pt else 1.0
     
     # Add misses channel
-    data_5ch = np.zeros(
-        (len(all_game_ids), num_time_bins, grid_y_bins, grid_x_bins, 5),
+    # ★変更: チャンネル数を 5 から 6 に変更
+    data_6ch = np.zeros(
+        (len(all_game_ids), num_time_bins, grid_y_bins, grid_x_bins, 6),
         dtype=np.float32,
     )
-    data_5ch[:, :, :, :, :4] = data_4d
-    data_5ch[:, :, :, :, 4] = data_4d[:, :, :, :, 0] - data_4d[:, :, :, :, 1]
+    data_6ch[:, :, :, :, :4] = data_4d
+    data_6ch[:, :, :, :, 4] = data_4d[:, :, :, :, 0] - data_4d[:, :, :, :, 1]
+
+    # ★追加: Channel 5: Frequency (初期値としてAttemptsをコピー)
+    data_6ch[:, :, :, :, 5] = data_4d[:, :, :, :, 0]
     
     # Reshape
-    tensor = data_5ch.reshape(
+    tensor = data_6ch.reshape(
         len(all_game_ids),
         num_time_bins,
         grid_y_bins * grid_x_bins,
-        5,
+        6,  # 5 -> 6
     )
     
     # Create combined game IDs (season * 1000000 + original_id for uniqueness)

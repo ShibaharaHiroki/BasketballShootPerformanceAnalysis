@@ -368,6 +368,40 @@ const Sidebar: React.FC = () => {
                 <Collapse in={showAdvanced} animateOpacity>
                     <VStack spacing={4} align="stretch" pl={2} borderLeftWidth="2px" borderColor="gray.700">
 
+
+                        {/* Metric Selection */}
+                        <Box>
+                            <Text fontWeight="bold" fontSize="xs" mb={2} color="gray.400">
+                                Metric
+                            </Text>
+                            <Menu>
+                                <MenuButton
+                                    as={Button}
+                                    size="xs"
+                                    rightIcon={<ChevronDownIcon />}
+                                    bg="gray.800"
+                                    color="white"
+                                    _hover={{ bg: 'gray.700' }}
+                                    _active={{ bg: 'gray.600' }}
+                                    w="100%"
+                                    textAlign="left"
+                                    fontWeight="normal"
+                                >
+                                    {tulcaChannel === 0 ? 'Attempts' :
+                                        tulcaChannel === 1 ? 'Makes' :
+                                            tulcaChannel === 2 ? 'Points' :
+                                                tulcaChannel === 4 ? 'Misses' : 'Frequency'}
+                                </MenuButton>
+                                <MenuList bg="gray.800" borderColor="gray.600">
+                                    <MenuItem bg="gray.800" color="white" _hover={{ bg: 'gray.700' }} fontSize="xs" onClick={() => setTulcaChannel(0)}>Attempts</MenuItem>
+                                    <MenuItem bg="gray.800" color="white" _hover={{ bg: 'gray.700' }} fontSize="xs" onClick={() => setTulcaChannel(1)}>Makes</MenuItem>
+                                    <MenuItem bg="gray.800" color="white" _hover={{ bg: 'gray.700' }} fontSize="xs" onClick={() => setTulcaChannel(2)}>Points</MenuItem>
+                                    <MenuItem bg="gray.800" color="white" _hover={{ bg: 'gray.700' }} fontSize="xs" onClick={() => setTulcaChannel(4)}>Misses</MenuItem>
+                                    <MenuItem bg="gray.800" color="white" _hover={{ bg: 'gray.700' }} fontSize="xs" onClick={() => setTulcaChannel(5)}>Frequency</MenuItem>
+                                </MenuList>
+                            </Menu>
+                        </Box>
+
                         {/* League Selection */}
                         <Box>
                             <Text fontWeight="bold" fontSize="xs" mb={2} color="gray.400">

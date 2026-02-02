@@ -145,11 +145,31 @@ const SpatialHeatmap: React.FC = () => {
         // --- 【修正】特徴量重要度に基づく相対的スケーリング ---
 
         // 1. 特徴量重要度の最大値を取得
-        // 画面の表示範囲（ズーム等）には依存せず、
-        // 計算された「特徴量重要度」データ全体の中での最大値を基準とします。
+        // ユーザー要望: 全ての時間帯の全てのコート位置の重要度の中で最も高いものを最大とする
+        // これにより、時間帯ごとの相対的な重要度の違い（例：1Q > 4Q）を可視化できる
         let maxImportance = 0;
-        if (vals.length > 0) {
-            maxImportance = Math.max(...vals);
+
+        if (timeBin === 'all') {
+            // 'all' の場合は、表示されている値（合計値）の最大値を基準にする
+            // ※ 合計値は単一Qの値より大きくなるため、単一Qの最大値を使うと円が大きくなりすぎる可能性がある
+            if (vals.length > 0) {
+                maxImportance = Math.max(...vals);
+            }
+        } else {
+            // 単一の時間帯を表示している場合は、全時間帯・全セルの最大値を基準にする
+            if (contribData) {
+                for (let t = 0; t < contribData.length; t++) {
+                    for (let i = 0; i < contribData[t].length; i++) {
+                        if (contribData[t][i] > maxImportance) {
+                            maxImportance = contribData[t][i];
+                        }
+                    }
+                }
+            }
+            // フォールバック: もし何らかの理由で計算できなかった場合は現在のvalsの最大値を使う
+            if (maxImportance === 0 && vals.length > 0) {
+                maxImportance = Math.max(...vals);
+            }
         }
 
         // 全て0の場合やエラー回避のためのガード
@@ -192,7 +212,7 @@ const SpatialHeatmap: React.FC = () => {
                     size: sizes,
                     color: colors,
                     opacity: 0.8,
-                    line: { color: 'white', width: 1 }, // White border
+                    line: { width: 0 }, // No white border
                     sizemode: 'diameter',
                 },
                 text: vals.map((v, i) => {

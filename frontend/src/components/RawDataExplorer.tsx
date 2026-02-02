@@ -373,8 +373,8 @@ function renderHeatmap(spatialData: number[], metadata: any, metric: 'attempts' 
         customdata: zRaw,
         type: 'heatmap',
         colorscale: 'Viridis',
-        showscale: true,
-        colorbar: colorbarSettings,
+        showscale: false,
+        // colorbar: colorbarSettings,
         hovertemplate: hoverTemplate
     }];
 

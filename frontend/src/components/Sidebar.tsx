@@ -168,10 +168,14 @@ const Sidebar: React.FC = () => {
                     [2022],
                     sDim,
                     vDim,
-                    tulcaChannel,
+                    1, // Force use of "Makes" (Channel 1) for team season comparison
                     selectedLeague,
                     analysisMode
                 );
+
+                // Update state to reflect that we are using channel 1
+                setTulcaChannel(1);
+
                 setEmbedding(response.embedding);
                 setScaledData(response.scaled_data);
                 setProjMats(response.proj_mats);

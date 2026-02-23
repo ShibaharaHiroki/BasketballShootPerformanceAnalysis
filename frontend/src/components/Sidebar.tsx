@@ -104,7 +104,7 @@ const Sidebar: React.FC = () => {
     // TULCA dimensions
     const [sDim, setSDim] = useState(4);
     const [vDim, setVDim] = useState(150);
-    const [tulcaChannel, setTulcaChannel] = useState(0);  // 0=attempts, 1=makes, 2=weighted
+    const [tulcaChannel, setTulcaChannel] = useState(5);  // 0=attempts, 1=makes, 2=weighted, 5=frequency
 
     // Class weights
     const [selectedClass, setSelectedClass] = useState(0);

@@ -196,19 +196,23 @@ def make_game_time_space_tensor_both(
                 data_4d[g_idx, t, y, x, 3] += efg_weight
 
     # Add channel 4: Misses (Attempts - Makes)
+    # ★変更: チャンネル数を 5 から 6 に変更
     data_6ch = np.zeros(
-        (len(game_ids), num_time_bins, grid_y_bins, grid_x_bins, 5),
+        (len(game_ids), num_time_bins, grid_y_bins, grid_x_bins, 6),
         dtype=np.float32,
     )
     data_6ch[:, :, :, :, :4] = data_4d
     data_6ch[:, :, :, :, 4] = data_4d[:, :, :, :, 0] - data_4d[:, :, :, :, 1]  # misses = attempts - makes
+    
+    # ★追加: Channel 5: Frequency (初期値としてAttemptsをコピー。後で正規化してFrequencyにする)
+    data_6ch[:, :, :, :, 5] = data_4d[:, :, :, :, 0]
 
-    # Reshape: (games, time, y, x, 5) → (games, time, y*x, 5)
+    # Reshape: (games, time, y, x, 6) → (games, time, y*x, 6)
     tensor = data_6ch.reshape(
         len(game_ids),
         num_time_bins,
         grid_y_bins * grid_x_bins,
-        5,
+        6,  # 5 -> 6
     )
 
     meta = {

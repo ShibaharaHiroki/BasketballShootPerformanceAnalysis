@@ -19,7 +19,7 @@ class InitializeRequest(BaseModel):
     seasons: List[int] = Field(default=[2022])
     s_dim: int = Field(default=4, ge=1)
     v_dim: int = Field(default=150, ge=1)
-    tulca_channel: int = Field(default=0, ge=0, le=4)  # 0=attempts, 1=makes, 2=points, 3=efg_weights, 4=misses
+    tulca_channel: int = Field(default=0, ge=0, le=5)  # 0=attempts, 1=makes, 2=points, 3=efg_weights, 4=misses, 5=frequency
     league: str = Field(default="nba")  # "nba" or "bleague"
     analysis_mode: str = Field(default="player")  # "player" or "team_season"
 
@@ -41,7 +41,7 @@ class RecomputeTulcaRequest(BaseModel):
     class_weights: List[ClassWeight]
     s_dim: int = Field(ge=1)
     v_dim: int = Field(ge=1)
-    tulca_channel: int = Field(default=0, ge=0, le=4)  # 0=attempts, 1=makes, 2=points, 3=efg_weights, 4=misses
+    tulca_channel: int = Field(default=0, ge=0, le=5)  # 0=attempts, 1=makes, 2=points, 3=efg_weights, 4=misses, 5=frequency
 
 
 class RecomputeTulcaResponse(BaseModel):
@@ -66,7 +66,7 @@ class AnalyzeClustersResponse(BaseModel):
 class AggregateClusterRequest(BaseModel):
     """Request to aggregate cluster data."""
     cluster_idx: List[int]
-    channel: int = Field(default=0, ge=0, le=2)
+    channel: int = Field(default=0, ge=0, le=5)
     weighted: bool = Field(default=False)
     time_bin: Optional[int] = None
 

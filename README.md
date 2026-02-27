@@ -77,15 +77,6 @@ npm start
 > - `start_backend.bat` — 仮想環境の作成・依存インストール・バックエンド起動を一括実行
 > - `start_frontend.bat` — 依存インストール・フロントエンド起動を一括実行
 
-### プロダクションビルド（フロントエンド）
-
-```bash
-cd frontend
-npm run build
-```
-
-`frontend/build/` ディレクトリに静的ファイルが出力される。
-
 ## プロジェクト構成
 
 ```
@@ -110,7 +101,7 @@ BasketballShootPerformanceAnalysis/
 │       ├── components/
 │       │   ├── Sidebar.tsx          # サイドバー（パラメータ設定）
 │       │   ├── SpatialHeatmap.tsx   # シュートヒートマップ
-│       │   ├── ScatterPlot.tsx      # 埋め込み散布図
+│       │   ├── ScatterPlot.tsx      # 2次元散布図
 │       │   ├── DominanceMap.tsx     # Dominance Map
 │       │   └── RawDataExplorer.tsx  # 詳細データ閲覧
 │       ├── context/             # React Context（状態管理）
@@ -120,8 +111,3 @@ BasketballShootPerformanceAnalysis/
 ├── start_frontend.bat           # フロントエンド起動スクリプト
 └── README.md
 ```
-
-## API 概要
-
-すべてのエンドポイントは `/api` プレフィックス配下にある。  
-詳細は http://localhost:8000/docs（起動後）で確認できる。

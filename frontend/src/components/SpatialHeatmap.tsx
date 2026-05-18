@@ -3,8 +3,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Box, HStack, VStack, Divider, Radio, RadioGroup, Text, useToast, Stack, Menu, MenuButton, MenuList, MenuItem, Button } from '@chakra-ui/react';
-import { ChevronDownIcon } from '@chakra-ui/icons';
+import { Box, HStack, VStack, Divider, Text, useToast, Stack } from '@chakra-ui/react';
 import Plot from 'react-plotly.js';
 import { useAppContext } from '../context/AppContext';
 import { apiClient } from '../services/api';
@@ -21,6 +20,7 @@ const SpatialHeatmap: React.FC = () => {
     const [contribData, setContribData] = useState<number[][] | null>(null);
     const [domData, setDomData] = useState<number[][] | null>(null);
     const [plotData, setPlotData] = useState<any[]>([]);
+    const [clusterFilter, setClusterFilter] = useState<'both' | 'c1' | 'c2'>('both');
 
     const S_bins = tensorShape.length > 0 ? tensorShape[1] : 4;
     const gridXBins = metadata?.grid_x_bins || 17;
@@ -201,6 +201,19 @@ const SpatialHeatmap: React.FC = () => {
             return d > 0 ? COLOR_C1 : COLOR_C2;
         });
 
+        // 4. Apply cluster filter to sizes (hide filtered-out clusters)
+        const filteredSizes = sizes.map((s, i) => {
+            if (clusterFilter === 'both') return s;
+            const d = domVals[i];
+            if (clusterFilter === 'c1') {
+                // Show only C1-dominant cells (d > threshold)
+                return d > DOMINANCE_THRESHOLD ? s : 0;
+            } else {
+                // Show only C2-dominant cells (d < -threshold)
+                return d < -DOMINANCE_THRESHOLD ? s : 0;
+            }
+        });
+
         const traces: any[] = [
             // Court marker
             {
@@ -209,7 +222,7 @@ const SpatialHeatmap: React.FC = () => {
                 mode: 'markers',
                 type: 'scatter',
                 marker: {
-                    size: sizes,
+                    size: filteredSizes,
                     color: colors,
                     opacity: 0.8,
                     line: { width: 0 }, // No white border
@@ -259,7 +272,7 @@ const SpatialHeatmap: React.FC = () => {
         });
 
         setPlotData(traces);
-    }, [contribData, domData, timeBin, metadata, gridXBins, gridYBins, S_bins]);
+    }, [contribData, domData, timeBin, metadata, gridXBins, gridYBins, S_bins, clusterFilter]);
 
     // NBA half-court visualization - Based on official NBA dimensions
     // Coordinate system: X from -250 to 250 (50 feet wide), Y from -47.5 to 422.5 (47 feet deep)
@@ -450,14 +463,6 @@ const SpatialHeatmap: React.FC = () => {
     ];
 
 
-    const timeBinOptions: { value: string; label: string }[] = [];
-    const quarterLabels = ['1Q', '2Q', '3Q', '4Q'];
-    for (let t = 0; t < S_bins && t < 4; t++) {
-        timeBinOptions.push({
-            value: String(t),
-            label: quarterLabels[t],
-        });
-    }
 
     // Get player names for clusters
     const { playerLabels, gameIds, playerNames } = useAppContext();
@@ -537,142 +542,239 @@ const SpatialHeatmap: React.FC = () => {
         '#c0392b', // Dark red
     ];
 
+    // Compute temporal importance per cluster:
+    // For each time bin, sum contribData separately for C1-dominant cells and C2-dominant cells
+    const temporalImportanceC1: number[] = [];
+    const temporalImportanceC2: number[] = [];
+    const DOMINANCE_THRESHOLD_BAR = 0.0001;
+    if (contribData && domData) {
+        for (let t = 0; t < S_bins; t++) {
+            let impC1 = 0;
+            let impC2 = 0;
+            for (let c = 0; c < contribData[t].length; c++) {
+                const d = domData[t][c];
+                if (Math.abs(d) < DOMINANCE_THRESHOLD_BAR) {
+                    // Neutral cell: add to both clusters
+                    impC1 += contribData[t][c];
+                    impC2 += contribData[t][c];
+                } else if (d > 0) {
+                    impC1 += contribData[t][c];
+                } else {
+                    impC2 += contribData[t][c];
+                }
+            }
+            temporalImportanceC1.push(impC1);
+            temporalImportanceC2.push(impC2);
+        }
+    }
+    const maxTemporalImportance = Math.max(
+        ...temporalImportanceC1.map(Math.abs),
+        ...temporalImportanceC2.map(Math.abs),
+        0.0001
+    );
+
+    const quarterLabelsBar = ['1Q', '2Q', '3Q', '4Q'];
+
     return (
         <HStack h="100%" w="100%" spacing={2} align="stretch">
-            {/* Player Timeline Panel */}
-            <Box flex="3" h="100%" overflowY="auto" bg="gray.800" p={3} borderRadius="md">
-                <VStack align="stretch" spacing={4}>
-                    {/* Cluster 1 Players */}
-                    <Box>
-                        <Text fontSize="sm" fontWeight="bold" color="red.400" mb={3}>
-                            Cluster 1 ({cluster1Players.length} games)
-                        </Text>
-                        {cluster1Players.length > 0 ? (
-                            <VStack align="stretch" spacing={3}>
-                                {/* Group by player */}
-                                {Array.from(new Set(cluster1Players.map(p => p.playerIdx))).map(playerIdx => {
-                                    const playerGames = cluster1Players.filter(p => p.playerIdx === playerIdx);
-                                    const playerColor = PLAYER_COLORS[playerIdx % PLAYER_COLORS.length];
-                                    const playerName = playerGames[0].playerName;
+            {/* Left column: Player Timeline + Temporal Importance Bar Chart */}
+            <VStack flex="3" h="100%" spacing={2} align="stretch">
+                {/* Player Timeline Panel (shrunken) */}
+                <Box flex="2" overflowY="auto" bg="gray.800" p={3} borderRadius="md">
+                    <VStack align="stretch" spacing={3}>
+                        {/* Cluster 1 Players */}
+                        <Box>
+                            <Text fontSize="xs" fontWeight="bold" color="red.400" mb={2}>
+                                Cluster 1 ({cluster1Players.length} games)
+                            </Text>
+                            {cluster1Players.length > 0 ? (
+                                <VStack align="stretch" spacing={2}>
+                                    {Array.from(new Set(cluster1Players.map(p => p.playerIdx))).map(playerIdx => {
+                                        const playerGames = cluster1Players.filter(p => p.playerIdx === playerIdx);
+                                        const playerColor = PLAYER_COLORS[playerIdx % PLAYER_COLORS.length];
+                                        const playerName = playerGames[0].playerName;
+                                        return (
+                                            <Box key={playerIdx}>
+                                                <Text fontSize="2xs" color="white" mb={1} fontWeight="semibold">
+                                                    {playerName} ({playerGames.length})
+                                                </Text>
+                                                <Box position="relative" h="10px" bg="gray.700" borderRadius="full">
+                                                    {playerGames.map((p, idx) => {
+                                                        const position = getGamePosition(p.gameId, playerIdx);
+                                                        return (
+                                                            <Box
+                                                                key={idx}
+                                                                position="absolute"
+                                                                left={`${position}%`}
+                                                                top="50%"
+                                                                transform="translate(-50%, -50%)"
+                                                                w="7px"
+                                                                h="7px"
+                                                                bg={playerColor}
+                                                                borderRadius="full"
+                                                                title={`Game #${p.gameId}`}
+                                                                cursor="pointer"
+                                                            />
+                                                        );
+                                                    })}
+                                                </Box>
+                                            </Box>
+                                        );
+                                    })}
+                                </VStack>
+                            ) : null}
+                        </Box>
 
-                                    return (
-                                        <Box key={playerIdx}>
-                                            <Text fontSize="xs" color="white" mb={1} fontWeight="semibold">
-                                                {playerName} ({playerGames.length})
-                                            </Text>
-                                            <Box position="relative" h="12px" bg="gray.700" borderRadius="full">
-                                                {playerGames.map((p, idx) => {
-                                                    const position = getGamePosition(p.gameId, playerIdx);
-                                                    return (
-                                                        <Box
-                                                            key={idx}
-                                                            position="absolute"
-                                                            left={`${position}%`}
-                                                            top="50%"
-                                                            transform="translate(-50%, -50%)"
-                                                            w="8px"
-                                                            h="8px"
-                                                            bg={playerColor}
-                                                            borderRadius="full"
-                                                            title={`Game #${p.gameId}`}
-                                                            cursor="pointer"
-                                                        />
-                                                    );
-                                                })}
+                        <Divider borderColor="gray.600" />
+
+                        {/* Cluster 2 Players */}
+                        <Box>
+                            <Text fontSize="xs" fontWeight="bold" color="blue.400" mb={2}>
+                                Cluster 2 ({cluster2Players.length} games)
+                            </Text>
+                            {cluster2Players.length > 0 ? (
+                                <VStack align="stretch" spacing={2}>
+                                    {Array.from(new Set(cluster2Players.map(p => p.playerIdx))).map(playerIdx => {
+                                        const playerGames = cluster2Players.filter(p => p.playerIdx === playerIdx);
+                                        const playerColor = PLAYER_COLORS[playerIdx % PLAYER_COLORS.length];
+                                        const playerName = playerGames[0].playerName;
+                                        return (
+                                            <Box key={playerIdx}>
+                                                <Text fontSize="2xs" color="white" mb={1} fontWeight="semibold">
+                                                    {playerName} ({playerGames.length})
+                                                </Text>
+                                                <Box position="relative" h="10px" bg="gray.700" borderRadius="full">
+                                                    {playerGames.map((p, idx) => {
+                                                        const position = getGamePosition(p.gameId, playerIdx);
+                                                        return (
+                                                            <Box
+                                                                key={idx}
+                                                                position="absolute"
+                                                                left={`${position}%`}
+                                                                top="50%"
+                                                                transform="translate(-50%, -50%)"
+                                                                w="7px"
+                                                                h="7px"
+                                                                bg={playerColor}
+                                                                borderRadius="full"
+                                                                title={`Game #${p.gameId}`}
+                                                                cursor="pointer"
+                                                            />
+                                                        );
+                                                    })}
+                                                </Box>
+                                            </Box>
+                                        );
+                                    })}
+                                </VStack>
+                            ) : null}
+                        </Box>
+                    </VStack>
+                </Box>
+
+                {/* Temporal Importance Bar Chart (Butterfly: C1 left, C2 right) */}
+                <Box flex="1" bg="gray.800" p={3} borderRadius="md" overflowY="auto">
+                    <HStack justify="space-between" mb={2}>
+                        <Text fontSize="2xs" fontWeight="bold" color="red.400">Cluster 1</Text>
+                        <Text fontSize="xs" fontWeight="bold" color="gray.300">Temporal Importance</Text>
+                        <Text fontSize="2xs" fontWeight="bold" color="blue.400">Cluster 2</Text>
+                    </HStack>
+                    {temporalImportanceC1.length > 0 ? (
+                        <VStack align="stretch" spacing={2}>
+                            {temporalImportanceC1.map((impC1, t) => {
+                                const impC2 = temporalImportanceC2[t];
+                                const ratioC1 = impC1 / maxTemporalImportance;
+                                const ratioC2 = impC2 / maxTemporalImportance;
+                                const barC1 = Math.max(ratioC1 * 100, 0.5);
+                                const barC2 = Math.max(ratioC2 * 100, 0.5);
+                                return (
+                                    <HStack key={t} spacing={0} align="center">
+                                        {/* C1 bar (grows right-to-left) - clickable */}
+                                        <Box flex="1" display="flex" justifyContent="flex-end">
+                                            <Box
+                                                position="relative"
+                                                w="100%"
+                                                h="16px"
+                                                bg="gray.700"
+                                                borderRadius="sm"
+                                                cursor="pointer"
+                                                onClick={() => {
+                                                    setTimeBin(String(t));
+                                                    setClusterFilter(prev => prev === 'c1' && timeBin === String(t) ? 'both' : 'c1');
+                                                }}
+                                                _hover={{ opacity: 0.8 }}
+                                                border={timeBin === String(t) && clusterFilter === 'c1' ? '1px solid' : 'none'}
+                                                borderColor="red.400"
+                                            >
+                                                <Box
+                                                    position="absolute"
+                                                    right="0"
+                                                    h="100%"
+                                                    w={`${barC1}%`}
+                                                    bg={COLOR_C1}
+                                                    borderRadius="sm"
+                                                    transition="width 0.3s ease"
+                                                />
                                             </Box>
                                         </Box>
-                                    );
-                                })}
-                            </VStack>
-                        ) : null}
-                    </Box>
-
-                    <Divider borderColor="gray.600" />
-
-                    {/* Cluster 2 Players */}
-                    <Box>
-                        <Text fontSize="sm" fontWeight="bold" color="blue.400" mb={3}>
-                            Cluster 2 ({cluster2Players.length} games)
-                        </Text>
-                        {cluster2Players.length > 0 ? (
-                            <VStack align="stretch" spacing={3}>
-                                {/* Group by player */}
-                                {Array.from(new Set(cluster2Players.map(p => p.playerIdx))).map(playerIdx => {
-                                    const playerGames = cluster2Players.filter(p => p.playerIdx === playerIdx);
-                                    const playerColor = PLAYER_COLORS[playerIdx % PLAYER_COLORS.length];
-                                    const playerName = playerGames[0].playerName;
-
-                                    return (
-                                        <Box key={playerIdx}>
-                                            <Text fontSize="xs" color="white" mb={1} fontWeight="semibold">
-                                                {playerName} ({playerGames.length})
-                                            </Text>
-                                            <Box position="relative" h="12px" bg="gray.700" borderRadius="full">
-                                                {playerGames.map((p, idx) => {
-                                                    const position = getGamePosition(p.gameId, playerIdx);
-                                                    return (
-                                                        <Box
-                                                            key={idx}
-                                                            position="absolute"
-                                                            left={`${position}%`}
-                                                            top="50%"
-                                                            transform="translate(-50%, -50%)"
-                                                            w="8px"
-                                                            h="8px"
-                                                            bg={playerColor}
-                                                            borderRadius="full"
-                                                            title={`Game #${p.gameId}`}
-                                                            cursor="pointer"
-                                                        />
-                                                    );
-                                                })}
+                                        {/* Quarter label (center) - clickable to switch time */}
+                                        <Text
+                                            fontSize="2xs"
+                                            color={timeBin === String(t) ? 'white' : 'gray.300'}
+                                            w="28px"
+                                            textAlign="center"
+                                            flexShrink={0}
+                                            fontWeight="bold"
+                                            cursor="pointer"
+                                            onClick={() => {
+                                                setTimeBin(String(t));
+                                                setClusterFilter('both');
+                                            }}
+                                            bg={timeBin === String(t) ? 'whiteAlpha.200' : 'transparent'}
+                                            borderRadius="sm"
+                                            _hover={{ bg: 'whiteAlpha.300' }}
+                                        >
+                                            {quarterLabelsBar[t] || `T${t + 1}`}
+                                        </Text>
+                                        {/* C2 bar (grows left-to-right) - clickable */}
+                                        <Box flex="1">
+                                            <Box
+                                                position="relative"
+                                                w="100%"
+                                                h="16px"
+                                                bg="gray.700"
+                                                borderRadius="sm"
+                                                cursor="pointer"
+                                                onClick={() => {
+                                                    setTimeBin(String(t));
+                                                    setClusterFilter(prev => prev === 'c2' && timeBin === String(t) ? 'both' : 'c2');
+                                                }}
+                                                _hover={{ opacity: 0.8 }}
+                                                border={timeBin === String(t) && clusterFilter === 'c2' ? '1px solid' : 'none'}
+                                                borderColor="blue.400"
+                                            >
+                                                <Box
+                                                    h="100%"
+                                                    w={`${barC2}%`}
+                                                    bg={COLOR_C2}
+                                                    borderRadius="sm"
+                                                    transition="width 0.3s ease"
+                                                />
                                             </Box>
                                         </Box>
-                                    );
-                                })}
-                            </VStack>
-                        ) : null}
-                    </Box>
-                </VStack>
-            </Box>
+                                    </HStack>
+                                );
+                            })}
+                        </VStack>
+                    ) : (
+                        <Text fontSize="2xs" color="gray.500">Select two clusters</Text>
+                    )}
+                </Box>
+            </VStack>
 
             {/* Spatial Heatmap */}
             <Box flex="7" h="100%" w="100%">
-                <HStack spacing={2} mb={2} fontSize="xs" flexWrap="wrap">
-                    <Menu>
-                        <MenuButton
-                            as={Button}
-                            size="xs"
-                            rightIcon={<ChevronDownIcon />}
-                            bg="gray.800"
-                            color="white"
-                            _hover={{ bg: 'gray.700' }}
-                            _active={{ bg: 'gray.600' }}
-                            w="120px"
-                            textAlign="left"
-                            fontWeight="normal"
-                        >
-                            {timeBinOptions.find(opt => opt.value === timeBin)?.label || '1Q'}
-                        </MenuButton>
-                        <MenuList bg="gray.800" borderColor="gray.600">
-                            {timeBinOptions.map((opt) => (
-                                <MenuItem
-                                    key={opt.value}
-                                    bg="gray.800"
-                                    color="white"
-                                    _hover={{ bg: 'gray.700' }}
-                                    onClick={() => setTimeBin(opt.value)}
-                                >
-                                    {opt.label}
-                                </MenuItem>
-                            ))}
-                        </MenuList>
-                    </Menu>
-
-
-                </HStack>
-
-                <Box h="calc(100% - 40px)" w="100%">
+                <Box h="100%" w="100%">
                     <Plot
                         data={plotData}
                         layout={{

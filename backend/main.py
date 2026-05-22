@@ -12,11 +12,11 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS configuration for frontend
+# CORS configuration - allow all origins (public API, no auth required)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "https://ShibaharaHiroki.github.io"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )

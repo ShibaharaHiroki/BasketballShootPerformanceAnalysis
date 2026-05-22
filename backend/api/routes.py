@@ -25,13 +25,14 @@ from models import (
     GetPlayersResponse,
 )
 from core.data_loader import load_nba_data, make_game_time_space_tensor_both
-from core.bleague_data_loader import (
-    load_bleague_data, 
-    get_bleague_players, 
-    make_bleague_tensor,
-    load_bleague_team_data,
-    make_bleague_team_tensor,
-)
+# B.League data loader is disabled (requires local Excel file)
+# from core.bleague_data_loader import (
+#     load_bleague_data,
+#     get_bleague_players,
+#     make_bleague_tensor,
+#     load_bleague_team_data,
+#     make_bleague_team_tensor,
+# )
 from core.analysis import (
     standardize_tensor_for_tulca,
     compute_embedding_and_projections,
@@ -81,21 +82,12 @@ async def health_check():
 @router.post("/players", response_model=GetPlayersResponse)
 async def get_players(request: GetPlayersRequest):
     """
-    Get available players for specified seasons.
+    Get available players for specified seasons. (NBA only)
     """
     try:
-        # Handle B.League
+        # B.League is disabled (requires local Excel file)
         if request.league == "bleague":
-            bleague_players = get_bleague_players()
-            players = [
-                PlayerInfo(
-                    player_id=p['player_id'],
-                    player_name=p['player_name'],
-                    game_count=p['game_count']
-                )
-                for p in bleague_players
-            ]
-            return GetPlayersResponse(players=players)
+            raise HTTPException(status_code=400, detail="B.League data is not available in this deployment.")
         
         # Handle NBA (default)
         df_all = load_nba_data(
@@ -137,172 +129,19 @@ async def initialize(request: InitializeRequest):
     Initialize the application by loading data and computing initial TULCA + PaCMAP.
     """
     try:
+        # B.League is disabled (requires local Excel file)
+        if request.league == "bleague":
+            raise HTTPException(status_code=400, detail="B.League data is not available in this deployment.")
+
         # Determine time bin based on league
-        time_bin_seconds = TIME_BIN_SECONDS_BLEAGUE if request.league == "bleague" else TIME_BIN_SECONDS_NBA
+        time_bin_seconds = TIME_BIN_SECONDS_NBA
         
         # Store league in app_state for later use
         app_state["league"] = request.league
         app_state["time_bin_seconds"] = time_bin_seconds
         app_state["tulca_channel"] = request.tulca_channel
         
-        # Handle B.League
-        if request.league == "bleague":
-            # Team Season Comparison Mode
-            if request.analysis_mode == "team_season":
-                # Load data from both seasons
-                df_2022_23, df_2023_24 = load_bleague_team_data()
-                
-                # Combine for cluster-shots API
-                df_combined = pd.concat([df_2022_23, df_2023_24], ignore_index=True)
-                
-                # Build team tensor
-                tensor_raw, meta, season_labels = make_bleague_team_tensor(
-                    df_2022_23,
-                    df_2023_24,
-                    grid_x_bins=GRID_X_BINS,
-                    grid_y_bins=GRID_Y_BINS,
-                    time_bin_seconds=time_bin_seconds,
-                )
-                
-                season_labels = np.array(season_labels, dtype=int)
-                all_game_ids = np.array(meta["game_ids"])
-                
-                # Standardize for TULCA
-                tensor = standardize_tensor_for_tulca(tensor_raw)
-                
-                # Compute TULCA + PaCMAP with season labels
-                proj_mats, scaled_data, embedding = compute_embedding_and_projections(
-                    tensor,
-                    season_labels,
-                    s_dim=request.s_dim,
-                    v_dim=request.v_dim,
-                    tulca_channel=request.tulca_channel,
-                )
-                
-                # Store in global state
-                app_state["tensor_raw"] = tensor_raw
-                app_state["tensor_standardized"] = tensor
-                app_state["player_labels"] = season_labels  # Renamed for compatibility
-                app_state["all_game_ids"] = all_game_ids
-                app_state["player_of_game"] = []  # Not used in team mode
-                app_state["df_player"] = df_combined
-                app_state["metadata"] = meta
-                app_state["player_ids"] = []
-                app_state["proj_mats"] = proj_mats
-                app_state["scaled_data"] = scaled_data
-                app_state["embedding"] = embedding
-                app_state["analysis_mode"] = "team_season"
-                
-                T_games, S_bins, V_cells, C_channels = tensor.shape
-                
-                return InitializeResponse(
-                    embedding=embedding.tolist(),
-                    scaled_data=scaled_data.tolist(),
-                    proj_mats=[m.tolist() for m in proj_mats],
-                    player_labels=season_labels.tolist(),
-                    game_ids=[int(g) for g in all_game_ids],
-                    player_names=["2022-23", "2023-24"],  # Season labels
-                    tensor_shape=[int(x) for x in [T_games, S_bins, V_cells, C_channels]],
-                    metadata={
-                        **meta,
-                        "x_edges": [float(x) for x in meta.get("x_edges", [])],
-                        "y_edges": [float(y) for y in meta.get("y_edges", [])],
-                        "game_ids": [int(g) for g in meta.get("game_ids", [])],
-                    },
-                )
-            
-            # Player Analysis Mode (default)
-            df_all = load_bleague_data()
-            
-            # Filter by player IDs
-            df_player = df_all[df_all["PLAYER_ID"].isin(request.player_ids)].copy()
-            
-            # Build player name map from data
-            player_names_map = {}
-            for pid in request.player_ids:
-                player_data = df_player[df_player["PLAYER_ID"] == pid]
-                if not player_data.empty:
-                    player_names_map[pid] = player_data["PLAYER_NAME"].iloc[0]
-                else:
-                    player_names_map[pid] = f"Player_{pid}"
-            
-            # Build tensors for each player
-            player_tensors = []
-            player_labels = []
-            all_game_ids = []
-            player_of_game = []
-            meta_any = None
-
-            for p_idx, pid in enumerate(request.player_ids):
-                df_sub = df_player[df_player["PLAYER_ID"] == pid].copy()
-                if df_sub.empty:
-                    continue
-
-                tensor_p, meta = make_bleague_tensor(
-                    df_sub,
-                    grid_x_bins=GRID_X_BINS,
-                    grid_y_bins=GRID_Y_BINS,
-                    time_bin_seconds=time_bin_seconds,
-                )
-
-                player_tensors.append(tensor_p)
-                player_labels.extend([p_idx] * tensor_p.shape[0])
-                all_game_ids.extend(meta["game_ids"])
-                player_of_game.extend([pid] * tensor_p.shape[0])
-
-                if meta_any is None:
-                    meta_any = meta
-
-            if not player_tensors:
-                raise HTTPException(status_code=400, detail="No data found for specified players")
-
-            # Concatenate tensors
-            tensor_raw = np.concatenate(player_tensors, axis=0)
-            tensor = standardize_tensor_for_tulca(tensor_raw)
-
-            player_labels = np.array(player_labels, dtype=int)
-            all_game_ids = np.array(all_game_ids)
-
-            # Compute TULCA + PaCMAP
-            proj_mats, scaled_data, embedding = compute_embedding_and_projections(
-                tensor,
-                player_labels,
-                s_dim=request.s_dim,
-                v_dim=request.v_dim,
-                tulca_channel=request.tulca_channel,
-            )
-
-            # Store in global state
-            app_state["tensor_raw"] = tensor_raw
-            app_state["tensor_standardized"] = tensor
-            app_state["player_labels"] = player_labels
-            app_state["all_game_ids"] = all_game_ids
-            app_state["player_of_game"] = player_of_game
-            app_state["df_player"] = df_player
-            app_state["metadata"] = meta_any
-            app_state["player_ids"] = request.player_ids
-            app_state["proj_mats"] = proj_mats
-            app_state["scaled_data"] = scaled_data
-            app_state["embedding"] = embedding
-
-            T_games, S_bins, V_cells, C_channels = tensor.shape
-
-            return InitializeResponse(
-                embedding=embedding.tolist(),
-                scaled_data=scaled_data.tolist(),
-                proj_mats=[m.tolist() for m in proj_mats],
-                player_labels=player_labels.tolist(),
-                game_ids=[int(g) for g in all_game_ids],
-                player_names=[player_names_map.get(pid, f"Player_{pid}") for pid in request.player_ids],
-                tensor_shape=[int(x) for x in [T_games, S_bins, V_cells, C_channels]],
-                metadata={
-                    **meta_any,
-                    "x_edges": [float(x) for x in meta_any.get("x_edges", [])],
-                    "y_edges": [float(y) for y in meta_any.get("y_edges", [])],
-                    "game_ids": [int(g) for g in meta_any.get("game_ids", [])],
-                },
-            )
-        
+        # B.League support is disabled in this deployment (requires local Excel file)
         # Handle NBA (default)
         df_all = load_nba_data(
             seasons=tuple(request.seasons),
@@ -578,24 +417,10 @@ async def cluster_shots(request: ClusterShotsRequest):
         cluster_idx = np.array(request.cluster_idx, dtype=int)
         game_ids_cluster = all_game_ids[cluster_idx]
         
-        # Check if in team_season mode
+        # B.League team_season mode is disabled
         analysis_mode = app_state.get("analysis_mode", "player")
         
-        if analysis_mode == "team_season":
-            # For team_season mode, game_ids are encoded as season*1000000 + original_id
-            # Decode them to get season and original game_id
-            season_ids = game_ids_cluster // 1000000
-            original_game_ids = game_ids_cluster % 1000000
-            
-            # Create filter pairs (original_game_id, season_label)
-            valid_pairs = pd.DataFrame({
-                "GAME_ID": original_game_ids,
-                "SEASON_LABEL": season_ids
-            }).drop_duplicates()
-            
-            # Merge to filter
-            sub = df_player.merge(valid_pairs, on=["GAME_ID", "SEASON_LABEL"], how="inner")
-        elif len(app_state.get("player_of_game", [])) > 0:
+        if len(app_state.get("player_of_game", [])) > 0:
             # Player analysis mode with player_of_game
             player_of_game = app_state["player_of_game"]
             players_cluster = [player_of_game[i] for i in cluster_idx]

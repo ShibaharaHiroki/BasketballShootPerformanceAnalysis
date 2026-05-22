@@ -32,6 +32,8 @@ import Plot from 'react-plotly.js';
 import { useAppContext } from '../context/AppContext';
 import { ShotData, ShotTypeStats } from '../types';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://basketballshootperformanceanalysis.onrender.com';
+
 // Helper functions
 function categorizeShotTypes(shots: ShotData[]): ShotTypeStats[] {
     const categories: { [key: string]: { attempts: number, makes: number, weighted_makes: number } } = {
@@ -551,19 +553,19 @@ const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndic
         // Map attempts_log to channel 0 (attempts)
         const channel = (metric === 'attempts' || metric === 'attempts_log') ? 0 : metric === 'fg' ? 1 : 2;
         const weighted = metric === 'wfg';  // Only wfg should use weighted calculation
-        fetch('http://localhost:8000/api/aggregate-cluster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, channel, weighted, time_bin: timeBinValue }) })
+        fetch(`${API_BASE_URL}/api/aggregate-cluster`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, channel, weighted, time_bin: timeBinValue }) })
             .then(res => res.json()).then(data => { setSpatialData(data.values || []); setIsLoading(false); }).catch(err => { console.error('Failed to fetch spatial data:', err); setIsLoading(false); });
     }, [clusterIndices, metric, timeBinValue]);
 
     useEffect(() => {
         if (!clusterIndices || clusterIndices.length === 0 || spatialMode !== 'shotmap') { setShotData([]); return; }
-        fetch('http://localhost:8000/api/cluster-shots', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, time_bin: timeBinValue }) })
+        fetch(`${API_BASE_URL}/api/cluster-shots`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, time_bin: timeBinValue }) })
             .then(res => res.json()).then(data => setShotData(data.shots || [])).catch(err => console.error('Failed to fetch shot data:', err));
     }, [clusterIndices, spatialMode, timeBinValue]);
 
     useEffect(() => {
         if (!clusterIndices || clusterIndices.length === 0) { setShotTypeStats([]); return; }
-        fetch('http://localhost:8000/api/cluster-shots', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, time_bin: timeBinValue }) })
+        fetch(`${API_BASE_URL}/api/cluster-shots`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, time_bin: timeBinValue }) })
             .then(res => res.json()).then(data => { const shots = data.shots || []; setShotTypeStats(categorizeShotTypes(shots)); }).catch(err => console.error('Failed to fetch shot type data:', err));
     }, [clusterIndices, timeBinValue]);
 
@@ -572,9 +574,9 @@ const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndic
         const promises = [];
         for (let q = 0; q < 4; q++) {
             promises.push(Promise.all([
-                fetch('http://localhost:8000/api/aggregate-cluster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, channel: 0, weighted: false, time_bin: q }) }).then(res => res.json()),
-                fetch('http://localhost:8000/api/aggregate-cluster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, channel: 1, weighted: false, time_bin: q }) }).then(res => res.json()),
-                fetch('http://localhost:8000/api/aggregate-cluster', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, channel: 2, weighted: true, time_bin: q }) }).then(res => res.json())
+                fetch(`${API_BASE_URL}/api/aggregate-cluster`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, channel: 0, weighted: false, time_bin: q }) }).then(res => res.json()),
+                fetch(`${API_BASE_URL}/api/aggregate-cluster`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, channel: 1, weighted: false, time_bin: q }) }).then(res => res.json()),
+                fetch(`${API_BASE_URL}/api/aggregate-cluster`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, channel: 2, weighted: true, time_bin: q }) }).then(res => res.json())
             ]));
         }
         Promise.all(promises).then(results => {

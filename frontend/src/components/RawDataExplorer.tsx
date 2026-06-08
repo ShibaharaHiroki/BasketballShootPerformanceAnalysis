@@ -2,7 +2,7 @@
  * Enhanced RawDataExplorer component - Side-by-side cluster comparison with black theme.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     Box,
     VStack,
@@ -31,8 +31,9 @@ import { ChevronDownIcon } from '@chakra-ui/icons';
 import Plot from 'react-plotly.js';
 import { useAppContext } from '../context/AppContext';
 import { ShotData, ShotTypeStats } from '../types';
+import ClusterSummaryPanel from './ClusterSummaryPanel';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://basketballshootperformanceanalysis.onrender.com';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 // Helper functions
 function categorizeShotTypes(shots: ShotData[]): ShotTypeStats[] {
@@ -529,9 +530,11 @@ interface ClusterPanelProps {
     clusterNumber: '1' | '2';
     clusterIndices: number[] | null;
     metadata: any;
+    onShotTypesChange?: (stats: ShotTypeStats[]) => void;
+    onTimeProfileChange?: (profile: { attempts: number[]; fg: number[]; wfg: number[] }) => void;
 }
 
-const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndices, metadata }) => {
+const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndices, metadata, onShotTypesChange, onTimeProfileChange }) => {
     const [spatialMode, setSpatialMode] = useState<'heatmap' | 'shotmap'>('heatmap');
     const [metric, setMetric] = useState<'attempts' | 'attempts_log' | 'fg' | 'wfg'>('attempts');
     const [isLoading, setIsLoading] = useState(false);
@@ -564,13 +567,22 @@ const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndic
     }, [clusterIndices, spatialMode, timeBinValue]);
 
     useEffect(() => {
-        if (!clusterIndices || clusterIndices.length === 0) { setShotTypeStats([]); return; }
+        if (!clusterIndices || clusterIndices.length === 0) { setShotTypeStats([]); if (onShotTypesChange) onShotTypesChange([]); return; }
         fetch(`${API_BASE_URL}/api/cluster-shots`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, time_bin: timeBinValue }) })
-            .then(res => res.json()).then(data => { const shots = data.shots || []; setShotTypeStats(categorizeShotTypes(shots)); }).catch(err => console.error('Failed to fetch shot type data:', err));
+            .then(res => res.json()).then(data => {
+                const shots = data.shots || [];
+                const stats = categorizeShotTypes(shots);
+                setShotTypeStats(stats);
+                if (onShotTypesChange) onShotTypesChange(stats);
+            }).catch(err => console.error('Failed to fetch shot type data:', err));
     }, [clusterIndices, timeBinValue]);
 
     useEffect(() => {
-        if (!clusterIndices || clusterIndices.length === 0) { setTimeProfileData({ attempts: [], fg: [], wfg: [] }); return; }
+        if (!clusterIndices || clusterIndices.length === 0) {
+            setTimeProfileData({ attempts: [], fg: [], wfg: [] });
+            if (onTimeProfileChange) onTimeProfileChange({ attempts: [], fg: [], wfg: [] });
+            return;
+        }
         const promises = [];
         for (let q = 0; q < 4; q++) {
             promises.push(Promise.all([
@@ -608,6 +620,7 @@ const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndic
             });
 
             setTimeProfileData({ attempts, fg, wfg });
+            if (onTimeProfileChange) onTimeProfileChange({ attempts, fg, wfg });
         }).catch(err => console.error('Failed to fetch time profile:', err));
     }, [clusterIndices]);
 
@@ -743,14 +756,43 @@ const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndic
 };
 
 const RawDataExplorer: React.FC = () => {
-    const { cluster1, cluster2, metadata } = useAppContext();
+    const { cluster1, cluster2, metadata, playerNames } = useAppContext();
+
+    // Lift up stats for ClusterSummaryPanel
+    const [c1ShotTypes, setC1ShotTypes] = useState<ShotTypeStats[]>([]);
+    const [c2ShotTypes, setC2ShotTypes] = useState<ShotTypeStats[]>([]);
+    const [c1TimeProfile, setC1TimeProfile] = useState<{ attempts: number[]; fg: number[]; wfg: number[] }>({ attempts: [], fg: [], wfg: [] });
+    const [c2TimeProfile, setC2TimeProfile] = useState<{ attempts: number[]; fg: number[]; wfg: number[] }>({ attempts: [], fg: [], wfg: [] });
 
     return (
         <Box p={4} h="100%" display="flex" flexDirection="column" overflow="hidden" bg="gray.900">
             <SimpleGrid columns={2} spacing={4} flex="1" minH="0">
-                <ClusterPanel clusterNumber="1" clusterIndices={cluster1} metadata={metadata} />
-                <ClusterPanel clusterNumber="2" clusterIndices={cluster2} metadata={metadata} />
+                <ClusterPanel
+                    clusterNumber="1"
+                    clusterIndices={cluster1}
+                    metadata={metadata}
+                    onShotTypesChange={setC1ShotTypes}
+                    onTimeProfileChange={setC1TimeProfile}
+                />
+                <ClusterPanel
+                    clusterNumber="2"
+                    clusterIndices={cluster2}
+                    metadata={metadata}
+                    onShotTypesChange={setC2ShotTypes}
+                    onTimeProfileChange={setC2TimeProfile}
+                />
             </SimpleGrid>
+
+            {/* AI Summary Panel - クラスタごとの実データ比較の下 */}
+            <ClusterSummaryPanel
+                cluster1Indices={cluster1}
+                cluster2Indices={cluster2}
+                cluster1ShotTypeStats={c1ShotTypes}
+                cluster2ShotTypeStats={c2ShotTypes}
+                cluster1TimeProfile={c1TimeProfile}
+                cluster2TimeProfile={c2TimeProfile}
+                playerNames={playerNames ?? []}
+            />
         </Box>
     );
 };

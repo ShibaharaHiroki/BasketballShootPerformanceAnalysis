@@ -6,6 +6,12 @@ from fastapi import APIRouter, HTTPException
 from typing import Dict, Any
 import numpy as np
 import pandas as pd
+import os
+from dotenv import load_dotenv
+import google.generativeai as genai
+
+# Load environment variables from .env file if present
+load_dotenv()
 
 from models import (
     InitializeRequest,
@@ -23,6 +29,9 @@ from models import (
     PlayerInfo,
     GetPlayersRequest,
     GetPlayersResponse,
+    SummarizeRequest,
+    SummarizeResponse,
+    ClusterStats,
 )
 from core.data_loader import load_nba_data, make_game_time_space_tensor_both
 # B.League data loader is disabled (requires local Excel file)
@@ -457,3 +466,83 @@ async def cluster_shots(request: ClusterShotsRequest):
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to retrieve cluster shots: {str(e)}")
+
+
+@router.post("/summarize", response_model=SummarizeResponse)
+async def summarize_clusters(request: SummarizeRequest):
+    """
+    Summarize two cluster comparisons using Gemini LLM.
+    """
+    try:
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            raise HTTPException(
+                status_code=500,
+                detail="GEMINI_API_KEY is not set. Please set it in the environment or backend/.env file."
+            )
+
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel("gemini-2.0-flash")
+
+        players_str = "、".join(request.player_names) if request.player_names else "（未指定）"
+        quarters = ["1Q", "2Q", "3Q", "4Q"]
+
+        def format_cluster(label: str, stats: ClusterStats) -> str:
+            lines = [f"【{label}】ゲーム数: {stats.game_count}"]
+
+            # Shot type stats
+            if stats.shot_type_stats:
+                lines.append("シュートタイプ別:")
+                for s in stats.shot_type_stats:
+                    attempts = s.get("attempts", 0)
+                    makes = s.get("makes", 0)
+                    weighted_makes = s.get("weighted_makes", 0)
+                    fg_pct = (makes / attempts * 100) if attempts > 0 else 0
+                    efg_pct = (weighted_makes / attempts * 100) if attempts > 0 else 0
+                    lines.append(
+                        f"  - {s.get('category', 'Unknown')}: "
+                        f"{attempts}本試投, FG% {fg_pct:.1f}%, EFG% {efg_pct:.1f}%"
+                    )
+
+            # Time profile
+            attempts_list = stats.time_profile.get("attempts", [])
+            fg_list = stats.time_profile.get("fg", [])
+            wfg_list = stats.time_profile.get("wfg", [])
+            if attempts_list:
+                lines.append("クォーター別:")
+                for i, q in enumerate(quarters):
+                    if i < len(attempts_list):
+                        a = attempts_list[i]
+                        fg = fg_list[i] if i < len(fg_list) else 0
+                        wfg = wfg_list[i] if i < len(wfg_list) else 0
+                        lines.append(
+                            f"  - {q}: {a:.0f}本, FG% {fg:.1f}%, EFG% {wfg:.1f}%"
+                        )
+            return "\n".join(lines)
+
+        cluster1_text = format_cluster("クラスタ1", request.cluster1)
+        cluster2_text = format_cluster("クラスタ2", request.cluster2)
+
+        prompt = f"""あなたはNBAのシュートパターン分析の専門家です。
+以下は、TULCA（Tensor-based Unsupervised Learning for Cluster Analysis）を使って識別された2つのシュートパターンクラスタの統計データです。
+対象選手: {players_str}
+
+{cluster1_text}
+
+{cluster2_text}
+
+上記2つのクラスタを比較して、以下の点についてプレイヤー視点で日本語で簡潔にサマリしてください（箇条書きと見出しを使って読みやすく）:
+1. 各クラスタのシュートパターンの特徴
+2. 両クラスタの主な違い（シュートタイプ・効率・時間帯など）
+3. どちらのクラスタがより効率的か、その理由
+4. 改善点や戦術的示唆（あれば）"""
+
+        response = model.generate_content(prompt)
+        summary_text = response.text.strip()
+
+        return SummarizeResponse(summary=summary_text)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gemini summarization failed: {str(e)}")

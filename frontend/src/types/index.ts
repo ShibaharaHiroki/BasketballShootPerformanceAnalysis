@@ -99,3 +99,26 @@ export interface AvailablePlayer {
 export interface GetPlayersResponse {
     players: AvailablePlayer[];
 }
+
+export interface ClusterShotTypeStat {
+    category: string;
+    attempts: number;
+    makes: number;
+    weighted_makes: number;
+}
+
+export interface ClusterStats {
+    game_count: number;
+    shot_type_stats: ClusterShotTypeStat[];
+    time_profile: { attempts: number[]; fg: number[]; wfg: number[] };
+}
+
+export interface SummarizeRequest {
+    cluster1: ClusterStats;
+    cluster2: ClusterStats;
+    player_names: string[];
+}
+
+export interface SummarizeResponse {
+    summary: string;
+}

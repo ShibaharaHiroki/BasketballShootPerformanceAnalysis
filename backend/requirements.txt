@@ -8,4 +8,6 @@ scipy>=1.11.0
 pacmap
 tulca
 python-multipart==0.0.6
+google-generativeai>=0.8.0
+python-dotenv>=1.0.0
 # openpyxl>=3.1.0  # B.League Excel loading (disabled)

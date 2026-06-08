@@ -10,9 +10,11 @@ import type {
     AnalyzeClustersResponse,
     AggregateClusterResponse,
     GetPlayersResponse,
+    SummarizeRequest,
+    SummarizeResponse,
 } from '../types';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://basketballshootperformanceanalysis.onrender.com';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
 const api = axios.create({
     baseURL: `${API_BASE_URL}/api`,
@@ -113,6 +115,14 @@ export const apiClient = {
             weighted,
             time_bin: timeBin,
         });
+        return response.data;
+    },
+
+    /**
+     * Summarize cluster comparison using Gemini LLM
+     */
+    summarize: async (payload: SummarizeRequest): Promise<SummarizeResponse> => {
+        const response = await api.post('/summarize', payload);
         return response.data;
     },
 };

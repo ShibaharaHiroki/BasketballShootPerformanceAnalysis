@@ -2,7 +2,7 @@
 Pydantic models for API request/response validation.
 """
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from pydantic import BaseModel, Field
 
 
@@ -120,3 +120,22 @@ class GetPlayersRequest(BaseModel):
 class GetPlayersResponse(BaseModel):
     """Response with available players."""
     players: List[PlayerInfo]
+
+
+class ClusterStats(BaseModel):
+    """Statistics for a single cluster (used as LLM input)."""
+    game_count: int
+    shot_type_stats: List[Dict[str, Any]]   # [{category, attempts, makes, weighted_makes}, ...]
+    time_profile: Dict[str, List[float]]    # {attempts: [], fg: [], wfg: []}
+
+
+class SummarizeRequest(BaseModel):
+    """Request to summarize cluster comparison with Gemini."""
+    cluster1: ClusterStats
+    cluster2: ClusterStats
+    player_names: List[str] = Field(default=[])
+
+
+class SummarizeResponse(BaseModel):
+    """Response from Gemini summarization."""
+    summary: str

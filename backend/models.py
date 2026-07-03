@@ -134,8 +134,12 @@ class SummarizeRequest(BaseModel):
     cluster1: ClusterStats
     cluster2: ClusterStats
     player_names: List[str] = Field(default=[])
+    league: str = Field(default="nba")  # "nba" or "bleague"
+    cluster1_idx: List[int] = Field(default=[])
+    cluster2_idx: List[int] = Field(default=[])
 
 
 class SummarizeResponse(BaseModel):
     """Response from Gemini summarization."""
     summary: str
+    external_stats: str = ""  # Raw external stats text sent to LLM

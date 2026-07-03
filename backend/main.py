@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from api.routes import router
 
 app = FastAPI(
-    title="NBA Shot Pattern Explorer API",
+    title="Basketball Shoot Performance Analysis API",
     description="Backend API for NBA shot pattern analysis with TULCA",
     version="1.0.0"
 )
@@ -29,7 +29,7 @@ app.include_router(router, prefix="/api")
 async def root():
     """Root endpoint."""
     return {
-        "message": "NBA Shot Pattern Explorer API",
+        "message": "Basketball Shoot Performance Analysis API",
         "docs": "/docs",
         "version": "1.0.0"
     }

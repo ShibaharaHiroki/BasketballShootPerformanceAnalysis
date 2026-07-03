@@ -1,5 +1,5 @@
 @echo off
-echo Starting NBA Shot Pattern Explorer Frontend...
+echo Starting Basketball Shoot Performance Analysis Frontend...
 echo.
 
 cd frontend

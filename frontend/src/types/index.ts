@@ -1,5 +1,5 @@
 /**
- * TypeScript type definitions for NBA Shot Pattern Explorer.
+ * TypeScript type definitions for Basketball Shoot Performance Analysis.
  */
 
 export interface PlayerInfo {
@@ -39,6 +39,10 @@ export interface AppState {
     cluster1: number[] | null;
     cluster2: number[] | null;
     contribTensor: number[][] | null;
+    timeBin: string;
+    clusterFilter: 'both' | 'c1' | 'c2';
+    contribData: number[][] | null;
+    domData: number[][] | null;
     isLoading: boolean;
     error: string | null;
 }
@@ -117,8 +121,11 @@ export interface SummarizeRequest {
     cluster1: ClusterStats;
     cluster2: ClusterStats;
     player_names: string[];
+    cluster1_idx?: number[];
+    cluster2_idx?: number[];
 }
 
 export interface SummarizeResponse {
     summary: string;
+    external_stats?: string;
 }

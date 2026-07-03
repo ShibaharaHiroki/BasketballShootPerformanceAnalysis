@@ -1,9 +1,9 @@
-/**
+﻿/**
  * SpatialHeatmap component for court visualization with importance overlay.
  */
 
 import React, { useEffect, useState } from 'react';
-import { Box, HStack, VStack, Text, useToast, Divider } from '@chakra-ui/react';
+import { Box, HStack, VStack, Divider, Text, useToast, Stack } from '@chakra-ui/react';
 import Plot from 'react-plotly.js';
 import { useAppContext } from '../context/AppContext';
 import { apiClient } from '../services/api';
@@ -58,7 +58,6 @@ const SpatialHeatmap: React.FC = () => {
         };
 
         fetchContribution();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [cluster1, cluster2]);
 
     // Generate plot data
@@ -465,9 +464,6 @@ const SpatialHeatmap: React.FC = () => {
 
 
 
-
-
-    // Compute temporal importance per cluster:
     // Get player names for clusters
     const { playerLabels, gameIds, playerNames } = useAppContext();
 
@@ -545,6 +541,8 @@ const SpatialHeatmap: React.FC = () => {
         '#16a085', // Green sea
         '#c0392b', // Dark red
     ];
+
+    // Compute temporal importance per cluster:
     // For each time bin, sum contribData separately for C1-dominant cells and C2-dominant cells
     const temporalImportanceC1: number[] = [];
     const temporalImportanceC2: number[] = [];
@@ -581,8 +579,6 @@ const SpatialHeatmap: React.FC = () => {
         <HStack h="100%" w="100%" spacing={2} align="stretch">
             {/* Left column: Player Timeline + Temporal Importance Bar Chart */}
             <VStack flex="3" h="100%" spacing={2} align="stretch">
-
-
                 {/* Player Timeline Panel (shrunken) */}
                 <Box flex="2" overflowY="auto" bg="gray.800" p={3} borderRadius="md">
                     <VStack align="stretch" spacing={3}>
@@ -675,6 +671,7 @@ const SpatialHeatmap: React.FC = () => {
                         </Box>
                     </VStack>
                 </Box>
+
                 {/* Temporal Importance Bar Chart (Butterfly: C1 left, C2 right) */}
                 <Box flex="1" bg="gray.800" p={3} borderRadius="md" overflowY="auto">
                     <HStack justify="space-between" mb={2}>

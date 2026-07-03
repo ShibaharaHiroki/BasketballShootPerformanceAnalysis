@@ -1,5 +1,5 @@
 /**
- * API client for NBA Shot Pattern Explorer backend.
+ * API client for Basketball Shoot Performance Analysis backend.
  */
 
 import axios from 'axios';

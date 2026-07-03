@@ -1,0 +1,23 @@
+{
+  "display_name": "Nikola Jokić",
+  "birthdate": "1995-02-19",
+  "height": "6-11",
+  "weight": "284",
+  "position": "Center",
+  "jersey": "15",
+  "team": "Nuggets",
+  "team_city": "Denver",
+  "team_abbreviation": "DEN",
+  "country": "Serbia",
+  "school": "Mega Basket",
+  "draft_year": "2014",
+  "draft_round": "2",
+  "draft_number": "41",
+  "from_year": "2015",
+  "to_year": "2026",
+  "seasons_exp": "11",
+  "headline_pts": "22.2",
+  "headline_reb": "11.1",
+  "headline_ast": "7.5",
+  "headline_pie": ""
+}

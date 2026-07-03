@@ -2,30 +2,27 @@
  * Enhanced RawDataExplorer component - Side-by-side cluster comparison with black theme.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Box,
     VStack,
     HStack,
     SimpleGrid,
     Heading,
-    RadioGroup,
-    Radio,
-    Stack,
     Text,
-    Divider,
+    Menu,
+    MenuButton,
+    MenuList,
+    MenuItem,
+    Button,
     Spinner,
+    Divider,
     Table,
     Thead,
     Tbody,
     Tr,
     Th,
     Td,
-    Menu,
-    MenuButton,
-    MenuList,
-    MenuItem,
-    Button,
 } from '@chakra-ui/react';
 import { ChevronDownIcon } from '@chakra-ui/icons';
 import Plot from 'react-plotly.js';
@@ -350,24 +347,13 @@ function renderHeatmap(spatialData: number[], metadata: any, metric: 'attempts' 
         }
     }
 
-    const label = metric === 'attempts' ? 'Frequency' : metric === 'attempts_log' ? 'Frequency (Log)' : metric === 'fg' ? 'FG%' : 'EFG%';
+    // const label = metric === 'attempts' ? 'Frequency' : metric === 'attempts_log' ? 'Frequency (Log)' : metric === 'fg' ? 'FG%' : 'EFG%';
 
-    // Custom hover template
-    let hoverTemplate = '<b>%{z:.1f}%</b><br>x=%{x:.1f}, y=%{y:.1f}<extra></extra>';
-    if (metric === 'attempts') {
-        hoverTemplate = '<b>Freq</b>: %{z:.1%}<br><b>Count</b>: %{customdata} / ' + totalAttempts + '<br>x=%{x:.1f}, y=%{y:.1f}<extra></extra>';
-    } else if (metric === 'attempts_log') {
-        // Show Count only, hide normalized z-score to avoid confusion
-        hoverTemplate = '<b>Count</b>: %{customdata}<br>(Log Scale)<br>x=%{x:.1f}, y=%{y:.1f}<extra></extra>';
-    }
-
-    const colorbarSettings = {
-        title: label,
-        len: 0.7,
-        tickfont: { color: 'white' },
-        titlefont: { color: 'white' },
-        tickformat: metric === 'attempts' ? '.0%' : undefined,
-    };
+    const hoverTemplate = metric === 'attempts'
+        ? '<b>Freq</b>: %{z:.1%}<br><b>Count</b>: %{customdata} / ' + totalAttempts + '<br>x=%{x:.1f}, y=%{y:.1f}<extra></extra>'
+        : metric === 'attempts_log'
+            ? '<b>Count</b>: %{customdata}<br>(Log Scale)<br>x=%{x:.1f}, y=%{y:.1f}<extra></extra>'
+            : '<b>%{z:.1f}%</b><br>x=%{x:.1f}, y=%{y:.1f}<extra></extra>';
 
     const data: any[] = [{
         x: metadata.x_edges,
@@ -535,11 +521,9 @@ interface ClusterPanelProps {
 }
 
 const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndices, metadata, onShotTypesChange, onTimeProfileChange }) => {
-    const [spatialMode, setSpatialMode] = useState<'heatmap' | 'shotmap'>('heatmap');
     const [metric, setMetric] = useState<'attempts' | 'attempts_log' | 'fg' | 'wfg'>('attempts');
     const [isLoading, setIsLoading] = useState(false);
     const [spatialData, setSpatialData] = useState<number[]>([]);
-    const [shotData, setShotData] = useState<ShotData[]>([]);
     const [shotTypeStats, setShotTypeStats] = useState<ShotTypeStats[]>([]);
     const [timeProfileData, setTimeProfileData] = useState<{ attempts: number[], fg: number[], wfg: number[] }>({ attempts: [], fg: [], wfg: [] });
     const [selectedQuarter, setSelectedQuarter] = useState<'all' | '0' | '1' | '2' | '3'>('all');
@@ -560,11 +544,6 @@ const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndic
             .then(res => res.json()).then(data => { setSpatialData(data.values || []); setIsLoading(false); }).catch(err => { console.error('Failed to fetch spatial data:', err); setIsLoading(false); });
     }, [clusterIndices, metric, timeBinValue]);
 
-    useEffect(() => {
-        if (!clusterIndices || clusterIndices.length === 0 || spatialMode !== 'shotmap') { setShotData([]); return; }
-        fetch(`${API_BASE_URL}/api/cluster-shots`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cluster_idx: clusterIndices, time_bin: timeBinValue }) })
-            .then(res => res.json()).then(data => setShotData(data.shots || [])).catch(err => console.error('Failed to fetch shot data:', err));
-    }, [clusterIndices, spatialMode, timeBinValue]);
 
     useEffect(() => {
         if (!clusterIndices || clusterIndices.length === 0) { setShotTypeStats([]); if (onShotTypesChange) onShotTypesChange([]); return; }
@@ -575,7 +554,7 @@ const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndic
                 setShotTypeStats(stats);
                 if (onShotTypesChange) onShotTypesChange(stats);
             }).catch(err => console.error('Failed to fetch shot type data:', err));
-    }, [clusterIndices, timeBinValue]);
+    }, [clusterIndices, timeBinValue, onShotTypesChange]);
 
     useEffect(() => {
         if (!clusterIndices || clusterIndices.length === 0) {
@@ -622,7 +601,7 @@ const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndic
             setTimeProfileData({ attempts, fg, wfg });
             if (onTimeProfileChange) onTimeProfileChange({ attempts, fg, wfg });
         }).catch(err => console.error('Failed to fetch time profile:', err));
-    }, [clusterIndices]);
+    }, [clusterIndices, onTimeProfileChange]);
 
     const hasData = clusterIndices && clusterIndices.length > 0;
 
@@ -690,15 +669,13 @@ const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndic
                 <Box h="280px" borderRadius="md" bg="black" display="flex" alignItems="center" justifyContent="center">
                     {!hasData ? null : isLoading ? (
                         <Spinner color={clusterColor} />
-                    ) : spatialMode === 'heatmap' && spatialData.length > 0 && metadata ? (
+                    ) : spatialData.length > 0 && metadata ? (
                         renderHeatmap(spatialData, metadata, metric)
-                    ) : /* spatialMode === 'shotmap' && shotData.length > 0 ? (
-                        renderShotMap(shotData)
-                    ) : */ (
-                            <Text fontSize="sm" color="white">Loading...</Text>
-                        )}
+                    ) : (
+                        <Text fontSize="sm" color="white">Loading...</Text>
+                    )}
                 </Box>
-                {spatialMode === 'heatmap' && hasData && (
+                {hasData && (
                     <HStack spacing={2} mt={2}>
                         <Text fontSize="xs" fontWeight="bold" color="white">Metric:</Text>
                         <Menu>
@@ -751,6 +728,7 @@ const ClusterPanel: React.FC<ClusterPanelProps> = ({ clusterNumber, clusterIndic
                     )}
                 </Box>
             </Box>
+
         </VStack>
     );
 };
@@ -765,36 +743,42 @@ const RawDataExplorer: React.FC = () => {
     const [c2TimeProfile, setC2TimeProfile] = useState<{ attempts: number[]; fg: number[]; wfg: number[] }>({ attempts: [], fg: [], wfg: [] });
 
     return (
-        <Box p={4} h="100%" display="flex" flexDirection="column" overflow="hidden" bg="gray.900">
-            <SimpleGrid columns={2} spacing={4} flex="1" minH="0">
-                <ClusterPanel
-                    clusterNumber="1"
-                    clusterIndices={cluster1}
-                    metadata={metadata}
-                    onShotTypesChange={setC1ShotTypes}
-                    onTimeProfileChange={setC1TimeProfile}
-                />
-                <ClusterPanel
-                    clusterNumber="2"
-                    clusterIndices={cluster2}
-                    metadata={metadata}
-                    onShotTypesChange={setC2ShotTypes}
-                    onTimeProfileChange={setC2TimeProfile}
-                />
-            </SimpleGrid>
+        <Box h="100%" display="flex" flexDirection="column" overflow="hidden" bg="gray.900">
+            {/* Upper half: Shot maps (Cluster 1 & 2 side by side) */}
+            <Box flex="1" minH="0" overflow="hidden" p={2}>
+                <SimpleGrid columns={2} spacing={3} h="100%">
+                    <ClusterPanel
+                        clusterNumber="1"
+                        clusterIndices={cluster1}
+                        metadata={metadata}
+                        onShotTypesChange={setC1ShotTypes}
+                        onTimeProfileChange={setC1TimeProfile}
+                    />
+                    <ClusterPanel
+                        clusterNumber="2"
+                        clusterIndices={cluster2}
+                        metadata={metadata}
+                        onShotTypesChange={setC2ShotTypes}
+                        onTimeProfileChange={setC2TimeProfile}
+                    />
+                </SimpleGrid>
+            </Box>
 
-            {/* AI Summary Panel - クラスタごとの実データ比較の下 */}
-            <ClusterSummaryPanel
-                cluster1Indices={cluster1}
-                cluster2Indices={cluster2}
-                cluster1ShotTypeStats={c1ShotTypes}
-                cluster2ShotTypeStats={c2ShotTypes}
-                cluster1TimeProfile={c1TimeProfile}
-                cluster2TimeProfile={c2TimeProfile}
-                playerNames={playerNames ?? []}
-            />
+            {/* Lower half: LLM Analysis */}
+            <Box flex="1" minH="0" overflowY="auto" p={2} borderTop="2px" borderColor="blue.800">
+                <ClusterSummaryPanel
+                    cluster1Indices={cluster1}
+                    cluster2Indices={cluster2}
+                    cluster1ShotTypeStats={c1ShotTypes}
+                    cluster2ShotTypeStats={c2ShotTypes}
+                    cluster1TimeProfile={c1TimeProfile}
+                    cluster2TimeProfile={c2TimeProfile}
+                    playerNames={playerNames ?? []}
+                />
+            </Box>
         </Box>
     );
+
 };
 
 export default RawDataExplorer;

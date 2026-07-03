@@ -6,7 +6,6 @@ import React, { useState, useEffect } from 'react';
 import {
     Box,
     VStack,
-    Heading,
     Button,
     Text,
     Slider,
@@ -20,7 +19,6 @@ import {
     MenuList,
     MenuItem,
     Collapse,
-    IconButton,
     HStack,
 } from '@chakra-ui/react';
 import { ChevronDownIcon, ChevronUpIcon, SettingsIcon } from '@chakra-ui/icons';
@@ -34,13 +32,10 @@ import type { ClassWeight, AvailablePlayer } from '../types';
 // ============================================
 const SELECTED_LEAGUE = 'nba' as 'nba' | 'bleague';
 
-const PLAYER_IDS_NBA = [203999, 203507, 203954];
 const PLAYER_NAMES_NBA = ['Jokic', 'Antetokounmpo', 'Embiid'];
 
 const Sidebar: React.FC = () => {
     const {
-        cluster1,
-        cluster2,
         resetClusters,
         tensorShape,
         playerNames,
@@ -700,7 +695,6 @@ const Sidebar: React.FC = () => {
                     </Button>
                 </Box>
 
-                {/* Small icon to reveal Advanced Settings */}
                 <Box
                     position="absolute"
                     bottom={2}
